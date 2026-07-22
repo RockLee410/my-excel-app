@@ -36,7 +36,6 @@ surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
 # --- STREAMLIT UI & SESSION STATE ---
 st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
 
-# Initialize Session State so selections aren't lost on refresh
 if 'cat1' not in st.session_state: st.session_state['cat1'] = []
 if 'cat2' not in st.session_state: st.session_state['cat2'] = []
 
@@ -47,6 +46,15 @@ def add_juz_30():
 def add_juz_29():
     juz_29 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]
     st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_29))
+
+# --- NEW: Category 2 Quick Add Functions ---
+def add_juz_30_cat2():
+    juz_30 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]
+    st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_30))
+
+def add_juz_29_cat2():
+    juz_29 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]
+    st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_29))
 
 st.title("📖 Quran Memorization Tracker")
 st.write("Generate a custom daily Excel tracker based on your memorization progress.")
@@ -63,11 +71,17 @@ with col2:
     st.button("⚡ Quick Add: Juz 29 to Category 1", on_click=add_juz_29)
 
 cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options, key='cat1')
+
+# --- NEW: Category 2 Buttons ---
+col3, col4 = st.columns(2)
+with col3:
+    st.button("⚡ Quick Add: Juz 30 to Category 2", on_click=add_juz_30_cat2)
+with col4:
+    st.button("⚡ Quick Add: Juz 29 to Category 2", on_click=add_juz_29_cat2)
+
 remaining_for_cat2 = [s for s in surah_options if s not in cat1_selections]
-# Ensure cat2 only contains valid remaining options
 valid_cat2 = [s for s in st.session_state['cat2'] if s in remaining_for_cat2]
 cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=remaining_for_cat2, default=valid_cat2)
-# Save valid cat2 back to state
 st.session_state['cat2'] = cat2_selections
 
 # --- EXCEL GENERATION LOGIC ---
@@ -114,7 +128,7 @@ if st.button("Generate My Custom Excel Tracker"):
    
     # --- SHEET 1: SURAH DASHBOARD & VISUALS ---
     worksheet = workbook.add_worksheet('Surah Dashboard')
-    worksheet.freeze_panes(5, 2) # Freezes top 5 rows, and columns A & B (No. & Surah)
+    worksheet.freeze_panes(5, 2)
    
     worksheet.set_column('A:A', 5)
     worksheet.set_column('B:B', 25)
@@ -129,10 +143,8 @@ if st.button("Generate My Custom Excel Tracker"):
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
     worksheet.write('A2', "Rule: Category 1 Surahs must be revised every 14 days. Prioritize Category 2 before starting Category 3.")
    
-    # Live Total Progress Metric
     worksheet.write_formula('A3', '="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E95, "1 - Confident", D6:D95)/604, "0.0%") & " (" & SUMIF(E6:E95, "1 - Confident", D6:D95) & " / 604 pages)"', progress_format)
    
-    # Jump to Today Hyperlink
     worksheet.write_formula('A4', '=HYPERLINK("#\'Daily Log\'!A" & MATCH(TODAY(), \'Daily Log\'!A:A, 0), "📅 CLICK HERE TO JUMP TO TODAY\'S LOG ENTRY")', link_format)
    
     headers = list(df.columns)
@@ -164,7 +176,6 @@ if st.button("Generate My Custom Excel Tracker"):
             'source': ['1 - Confident', '2 - Needs Revision', '3 - Not Memorized']
         })
        
-    # APPLY CONDITIONAL FORMATTING
     worksheet.conditional_format('H6:H95', {'type': 'cell', 'criteria': '==', 'value': '"🔴 Overdue"', 'format': red_bg})
     worksheet.conditional_format('H6:H95', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
 
@@ -190,7 +201,7 @@ if st.button("Generate My Custom Excel Tracker"):
 
     # --- SHEET 2: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily Log')
-    log_sheet.freeze_panes(1, 0) # Freezes top header row
+    log_sheet.freeze_panes(1, 0)
    
     log_sheet.set_column('A:A', 15, date_format)
     log_sheet.set_column('B:B', 15)
