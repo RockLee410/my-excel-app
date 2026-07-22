@@ -47,7 +47,6 @@ def add_juz_29():
     juz_29 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]
     st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_29))
 
-# --- NEW: Category 2 Quick Add Functions ---
 def add_juz_30_cat2():
     juz_30 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]
     st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_30))
@@ -70,25 +69,24 @@ with col1:
 with col2:
     st.button("⚡ Quick Add: Juz 29 to Category 1", on_click=add_juz_29)
 
+# --- THE DROPDOWN FIX ---
+# By not actively restricting the options, the menu stays open while you click!
 cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options, key='cat1')
 
-# --- NEW: Category 2 Buttons ---
 col3, col4 = st.columns(2)
 with col3:
     st.button("⚡ Quick Add: Juz 30 to Category 2", on_click=add_juz_30_cat2)
 with col4:
     st.button("⚡ Quick Add: Juz 29 to Category 2", on_click=add_juz_29_cat2)
 
-remaining_for_cat2 = [s for s in surah_options if s not in cat1_selections]
-valid_cat2 = [s for s in st.session_state['cat2'] if s in remaining_for_cat2]
-cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=remaining_for_cat2, default=valid_cat2)
-st.session_state['cat2'] = cat2_selections
+cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=surah_options, key='cat2')
 
 # --- EXCEL GENERATION LOGIC ---
 if st.button("Generate My Custom Excel Tracker"):
     tracker_data = []
     for s in SURAH_DATA:
         surah_string = f"{s[0]}. {s[1]}"
+        # If accidentally in both, Cat 1 takes priority
         if surah_string in cat1_selections:
             category = "1 - Confident"
         elif surah_string in cat2_selections:
@@ -113,7 +111,6 @@ if st.button("Generate My Custom Excel Tracker"):
     output = BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
    
-    # FORMATTING STYLES
     header_format = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
     bold_format = workbook.add_format({'bold': True})
     progress_format = workbook.add_format({'bold': True, 'font_color': '#006100', 'font_size': 14})
@@ -122,7 +119,6 @@ if st.button("Generate My Custom Excel Tracker"):
     border_format = workbook.add_format({'border': 1})
     formula_gray_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'num_format': 'yyyy-mm-dd'})
    
-    # CONDITIONAL FORMATTING COLORS
     red_bg = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
     green_bg = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
    
@@ -145,7 +141,11 @@ if st.button("Generate My Custom Excel Tracker"):
    
     worksheet.write_formula('A3', '="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E95, "1 - Confident", D6:D95)/604, "0.0%") & " (" & SUMIF(E6:E95, "1 - Confident", D6:D95) & " / 604 pages)"', progress_format)
    
-    worksheet.write_formula('A4', '=HYPERLINK("#\'Daily Log\'!A" & MATCH(TODAY(), \'Daily Log\'!A:A, 0), "📅 CLICK HERE TO JUMP TO TODAY\'S LOG ENTRY")', link_format)
+    # --- THE HYPERLINK FIX ---
+    # Calculates the row mathematically by checking how many days have passed since the file was generated!
+    start_date = date.today()
+    hyperlink_formula = f'=HYPERLINK("#\'Daily Log\'!A" & (TODAY() - DATE({start_date.year}, {start_date.month}, {start_date.day}) + 2), "📅 CLICK HERE TO JUMP TO TODAY\'S LOG ENTRY")'
+    worksheet.write_formula('A4', hyperlink_formula, link_format)
    
     headers = list(df.columns)
     for col_num, data in enumerate(headers):
@@ -223,8 +223,6 @@ if st.button("Generate My Custom Excel Tracker"):
         log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!E{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!A{dash_row} & ". " & \'Surah Dashboard\'!B{dash_row}, "")')
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
-   
-    start_date = date.today()
    
     for row in range(1, 1001):
         current_date = start_date + timedelta(days=row-1)
