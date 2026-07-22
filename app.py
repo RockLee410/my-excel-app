@@ -28,12 +28,11 @@ SURAH_DATA = [
     (81, "At-Takwir", 29), (82, "Al-Infitar", 19), (83, "Al-Mutaffifin", 36), (84, "Al-Inshiqaq", 25),
     (85, "Al-Buruj", 22), (86, "At-Tariq", 17), (87, "Al-A'la", 19), (88, "Al-Ghashiyah", 26),
     (89, "Al-Fajr", 30),
-    (90, "Al-Balad to An-Nas", 208) # Grouped item
-
+    (90, "Al-Balad to An-Nas", 208)
 ]
 
 # --- STREAMLIT UI ---
-st.set_page_config(page_title="Quran Memorization Tracker", layout="centered")
+st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
 
 st.title("📖 Quran Memorization Tracker")
 st.write("Generate a custom daily Excel tracker based on your memorization progress.")
@@ -42,30 +41,14 @@ st.markdown("### ⏳ Daily Commitment")
 daily_time = st.text_input("How much time will you dedicate to the Quran daily?", placeholder="e.g., 30 minutes, 1 hour")
 
 st.markdown("### 🗂️ Categorize the Surahs")
-st.write("Select the Surahs for Categories 1 and 2. Any unselected Surahs will automatically be placed in Category 3 (Not Memorized).")
-
 surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
 
-# Category 1 Input
-cat1_selections = st.multiselect(
-    "🟢 Category 1: Memorized with Confidence",
-    options=surah_options,
-    help="These Surahs require revision once every 14 days."
-)
-
-# Filter out Cat 1 from Cat 2 options
+cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options)
 remaining_for_cat2 = [s for s in surah_options if s not in cat1_selections]
-
-# Category 2 Input
-cat2_selections = st.multiselect(
-    "🟡 Category 2: Needs Revision",
-    options=remaining_for_cat2,
-    help="These are your priority for daily revision."
-)
+cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=remaining_for_cat2)
 
 # --- EXCEL GENERATION LOGIC ---
 if st.button("Generate My Custom Excel Tracker"):
-    # Build the base data
     tracker_data = []
     for s in SURAH_DATA:
         surah_string = f"{s[0]}. {s[1]}"
@@ -89,20 +72,16 @@ if st.button("Generate My Custom Excel Tracker"):
 
     df = pd.DataFrame(tracker_data)
 
-    # Write to Excel
     output = BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
    
-    # Format settings
     header_format = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
     bold_format = workbook.add_format({'bold': True})
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd', 'border': 1})
     border_format = workbook.add_format({'border': 1})
    
-    # Sheet 1: Master Dashboard
+    # --- SHEET 1: SURAH DASHBOARD & VISUALS ---
     worksheet = workbook.add_worksheet('Surah Dashboard')
-   
-    # Set Columns width
     worksheet.set_column('A:A', 5)
     worksheet.set_column('B:B', 25)
     worksheet.set_column('C:C', 12)
@@ -110,81 +89,88 @@ if st.button("Generate My Custom Excel Tracker"):
     worksheet.set_column('E:E', 18)
     worksheet.set_column('F:F', 18)
     worksheet.set_column('G:G', 15)
-    worksheet.set_column('H:H', 30)
+    worksheet.set_column('H:H', 20)
 
-    # Add motivational header
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
     worksheet.write('A2', "Rule: Category 1 Surahs must be revised every 14 days. Prioritize Category 2 before starting Category 3.")
    
-    # Write Headers
     headers = list(df.columns)
     for col_num, data in enumerate(headers):
         worksheet.write(4, col_num, data, header_format)
 
-    # Write Data and Formulas
     for row_num in range(len(df)):
         excel_row = row_num + 5
-       
         worksheet.write(excel_row, 0, df.iloc[row_num]['No.'], border_format)
         worksheet.write(excel_row, 1, df.iloc[row_num]['Surah'], border_format)
         worksheet.write(excel_row, 2, df.iloc[row_num]['Total Verses'], border_format)
         worksheet.write(excel_row, 3, df.iloc[row_num]['Category'], border_format)
-       
         worksheet.write_blank(excel_row, 4, None, date_format)
-       
         f_formula = f'=IF(ISBLANK(E{excel_row+1}), "", E{excel_row+1}+14)'
         worksheet.write_formula(excel_row, 5, f_formula, date_format)
-       
         g_formula = f'=IF(ISBLANK(E{excel_row+1}), "Pending", IF(TODAY()>F{excel_row+1}, "🔴 Overdue", "🟢 Good"))'
         worksheet.write_formula(excel_row, 6, g_formula, border_format)
-       
         worksheet.write_blank(excel_row, 7, None, border_format)
 
-    # Sheet 2: Daily Log
+    # Add Chart Data Summary Table (Hidden to the side)
+    cat1_count = len(cat1_selections)
+    cat2_count = len(cat2_selections)
+    cat3_count = 90 - (cat1_count + cat2_count)
+
+    worksheet.write('J4', 'Category', header_format)
+    worksheet.write('K4', 'Count', header_format)
+    worksheet.write('J5', '1 - Confident')
+    worksheet.write('K5', cat1_count)
+    worksheet.write('J6', '2 - Needs Revision')
+    worksheet.write('K6', cat2_count)
+    worksheet.write('J7', '3 - Not Memorized')
+    worksheet.write('K7', cat3_count)
+
+    # Create the Pie Chart
+    chart = workbook.add_chart({'type': 'pie'})
+    chart.add_series({
+        'name': 'Memorization Progress',
+        'categories': "='Surah Dashboard'!$J$5:$J$7",
+        'values': "='Surah Dashboard'!$K$5:$K$7",
+        'points': [
+            {'fill': {'color': '#92D050'}}, # Green for Confident
+            {'fill': {'color': '#FFC000'}}, # Yellow for Revision
+            {'fill': {'color': '#D9D9D9'}}, # Gray for Not Memorized
+        ],
+    })
+    chart.set_title({'name': 'Memorization Progress Overview'})
+    worksheet.insert_chart('J9', chart, {'x_scale': 1.2, 'y_scale': 1.2})
+
+    # --- SHEET 2: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily Log')
     log_sheet.set_column('A:A', 15)
-    log_sheet.set_column('B:B', 30)
-    log_sheet.set_column('C:C', 18)
-    log_sheet.set_column('D:D', 25)
+    log_sheet.set_column('B:B', 15) # Day column
+    log_sheet.set_column('C:C', 30)
+    log_sheet.set_column('D:D', 15)
     log_sheet.set_column('E:E', 25)
+    log_sheet.set_column('F:F', 25)
    
-    # New Headers for easier logging
-    log_headers = ['Date', 'Surah', 'Full Surah?', 'Specific Verses (If No)', 'Type (Revision/New)']
+    # Added "Day" header
+    log_headers = ['Date', 'Day', 'Surah', 'Full Surah?', 'Specific Verses (If No)', 'Type (Revision/New)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
        
-    # Hidden column for the dropdown list
     surah_names = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
     log_sheet.write_column('Z1', surah_names)
    
-    # Add dropdown menus to the first 1000 rows
+    # Format for automated Day column
+    day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
+   
     for row in range(1, 1001):
-        # Surah selection (Column B)
-        log_sheet.data_validation(row, 1, row, 1, {
-            'validate': 'list',
-            'source': '=$Z$1:$Z$90' # Updated to match 90 items
-        })
+        # Auto-calculate Day based on Date (Column A to Column B)
+        log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
        
-        # Full Surah Yes/No (Column C)
-        log_sheet.data_validation(row, 2, row, 2, {
-            'validate': 'list',
-            'source': ['Yes', 'No']
-        })
-       
-        # Type selection (Column E)
-        log_sheet.data_validation(row, 4, row, 4, {
-            'validate': 'list',
-            'source': ['Revision', 'New Memorization']
-        })
+        # Shifted dropdowns over by 1 column because of the new 'Day' column
+        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$90'})
+        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': ['Yes', 'No']})
+        log_sheet.data_validation(row, 5, row, 5, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
        
     workbook.close()
    
     st.success("✅ Your custom tracker is ready!")
-   
-    st.download_button(
-        label="📥 Download Excel Tracker",
-        data=output.getvalue(),
-        file_name="Quran_Memorization_Tracker.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    st.download_button(label="📥 Download Excel Tracker", data=output.getvalue(), file_name="Quran_Memorization_Tracker.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
