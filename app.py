@@ -104,32 +104,25 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write(excel_row, 0, df.iloc[row_num]['No.'], border_format)
         worksheet.write(excel_row, 1, df.iloc[row_num]['Surah'], border_format)
         worksheet.write(excel_row, 2, df.iloc[row_num]['Total Verses'], border_format)
-       
-        # Category Column (Initial Value)
         worksheet.write(excel_row, 3, df.iloc[row_num]['Category'], border_format)
        
-        # AUTOMATED Last Revised Date: MAXIFS finding the newest date from the Daily Log
-        e_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$C$2:$C$1001, B{excel_row+1})=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$C$2:$C$1001, B{excel_row+1}))'
-        worksheet.write_formula(excel_row, 4, e_formula, formula_gray_format)
+        range_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1})=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}))'
+        worksheet.write_formula(excel_row, 4, range_formula, formula_gray_format)
        
-        # Next Revision Due (Only calculates if it is Category 1)
         f_formula = f'=IF(D{excel_row+1}="1 - Confident", IF(E{excel_row+1}="", "", E{excel_row+1}+14), "")'
         worksheet.write_formula(excel_row, 5, f_formula, formula_gray_format)
        
-        # Status (Custom messages based on Category)
         g_formula = f'=IF(D{excel_row+1}="3 - Not Memorized", "⚪ Not Started", IF(D{excel_row+1}="2 - Needs Revision", "🟡 In Progress", IF(E{excel_row+1}="", "Pending", IF(TODAY()>F{excel_row+1}, "🔴 Overdue", "🟢 Good"))))'
         worksheet.write_formula(excel_row, 6, g_formula, border_format)
        
         worksheet.write_blank(excel_row, 7, None, border_format)
 
-    # Make the Dashboard Categories Editable with Dropdowns
     for row in range(5, len(df) + 5):
         worksheet.data_validation(row, 3, row, 3, {
             'validate': 'list',
             'source': ['1 - Confident', '2 - Needs Revision', '3 - Not Memorized']
         })
 
-    # Add Dynamic Chart Data Summary Table (Hidden to the side)
     last_row = len(df) + 5
     worksheet.write('J4', 'Category', header_format)
     worksheet.write('K4', 'Count', header_format)
@@ -140,17 +133,12 @@ if st.button("Generate My Custom Excel Tracker"):
     worksheet.write('J7', '3 - Not Memorized')
     worksheet.write_formula('K7', f'=COUNTIF($D$6:$D${last_row}, "3 - Not Memorized")')
 
-    # Create the Live Pie Chart
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({
         'name': 'Memorization Progress',
         'categories': "='Surah Dashboard'!$J$5:$J$7",
         'values': "='Surah Dashboard'!$K$5:$K$7",
-        'points': [
-            {'fill': {'color': '#92D050'}}, # Green for Confident
-            {'fill': {'color': '#FFC000'}}, # Yellow for Revision
-            {'fill': {'color': '#D9D9D9'}}, # Gray for Not Memorized
-        ],
+        'points': [{'fill': {'color': '#92D050'}}, {'fill': {'color': '#FFC000'}}, {'fill': {'color': '#D9D9D9'}}],
     })
     chart.set_title({'name': 'Memorization Progress Overview'})
     worksheet.insert_chart('J9', chart, {'x_scale': 1.2, 'y_scale': 1.2})
@@ -159,26 +147,37 @@ if st.button("Generate My Custom Excel Tracker"):
     log_sheet = workbook.add_worksheet('Daily Log')
     log_sheet.set_column('A:A', 15)
     log_sheet.set_column('B:B', 15)
-    log_sheet.set_column('C:C', 30)
-    log_sheet.set_column('D:D', 15)
-    log_sheet.set_column('E:E', 25)
+    log_sheet.set_column('C:C', 25)
+    log_sheet.set_column('D:D', 25)
+    log_sheet.set_column('E:E', 15)
     log_sheet.set_column('F:F', 25)
+    log_sheet.set_column('G:G', 25)
    
-    log_headers = ['Date', 'Day', 'Surah', 'Full Surah?', 'Specific Verses (If No)', 'Type (Revision/New)']
+    log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)', 'Full Surah?', 'Specific Verses (If No)', 'Type (Revision/New)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
        
-    surah_names = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
-    log_sheet.write_column('Z1', surah_names)
+    log_sheet.set_column('H:I', None, None, {'hidden': True})
+   
+    # --- NEW: LIVE EXCEL FORMULA FOR DROPDOWN ---
+    # This formula filters the Dashboard list and ignores anything marked "3 - Not Memorized"
+    log_sheet.write_formula('Z1', '=FILTER(\'Surah Dashboard\'!B6:B95, \'Surah Dashboard\'!D6:D95<>"3 - Not Memorized", "No Active Surahs")')
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
     for row in range(1, 1001):
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
-        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$90'})
-        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': ['Yes', 'No']})
-        log_sheet.data_validation(row, 5, row, 5, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
+       
+        # The dropdown source now looks at a large block in Z, but Excel's 'ignore_blank' feature keeps it tidy
+        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$90', 'ignore_blank': True})
+        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': '=$Z$1:$Z$90', 'ignore_blank': True})
+       
+        log_sheet.data_validation(row, 4, row, 4, {'validate': 'list', 'source': ['Yes', 'No']})
+        log_sheet.data_validation(row, 6, row, 6, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
+       
+        log_sheet.write_formula(row, 7, f'=IF(ISBLANK(C{row+1}), "", VALUE(LEFT(C{row+1}, FIND(".", C{row+1})-1)))')
+        log_sheet.write_formula(row, 8, f'=IF(ISBLANK(C{row+1}), "", IF(ISBLANK(D{row+1}), H{row+1}, VALUE(LEFT(D{row+1}, FIND(".", D{row+1})-1))))')
        
     workbook.close()
    
