@@ -39,6 +39,7 @@ SURAH_DATA = [
 ]
 
 surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
+total_surahs = len(SURAH_DATA)
 
 # --- STREAMLIT UI & SESSION STATE ---
 st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
@@ -170,8 +171,9 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         worksheet.write(excel_row, 2, df.iloc[row_num]['Page'], border_format)
         worksheet.write(excel_row, 3, df.iloc[row_num]['Category'], border_format)
         
-        # --- THE PAGE-BOUNDARY MATH ENGINE ---
-        range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$C$2:$C$1001, $B{excel_row+1}, Daily_Log!$D$2:$D$1001, "<="&$C{excel_row+1}, Daily_Log!$Z$2:$Z$1001, ">="&$C{excel_row+1})=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$C$2:$C$1001, $B{excel_row+1}, Daily_Log!$D$2:$D$1001, "<="&$C{excel_row+1}, Daily_Log!$Z$2:$Z$1001, ">="&$C{excel_row+1}))'
+        # --- THE PURE PAGE-BOUNDARY MATH ENGINE ---
+        # It no longer checks the Surah name. It checks if the Dashboard Page Number ($C) falls between the Start Page ($D) and End Page ($Z)
+        range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$D$2:$D$1001, "<="&$C{excel_row+1}, Daily_Log!$Z$2:$Z$1001, ">="&$C{excel_row+1})=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$D$2:$D$1001, "<="&$C{excel_row+1}, Daily_Log!$Z$2:$Z$1001, ">="&$C{excel_row+1}))'
         worksheet.write_formula(excel_row, 4, range_formula, formula_gray_format) 
         
         f_formula = f'=IF(OR(D{excel_row+1}="1 - Confident", D{excel_row+1}="2 - Needs Revision"), IF(E{excel_row+1}="", "", E{excel_row+1}+14), "")'
@@ -219,20 +221,21 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     log_sheet.set_column('B:B', 15) 
     log_sheet.set_column('C:C', 25) 
     log_sheet.set_column('D:D', 15) 
-    log_sheet.set_column('E:E', 15)
-    log_sheet.set_column('F:F', 35)
+    log_sheet.set_column('E:E', 25)
+    log_sheet.set_column('F:F', 15)
+    log_sheet.set_column('G:G', 35)
     
-    log_headers = ['Date', 'Day', 'Surah', 'Start Page', 'End Page (Optional)', 'Notes / Specific Verses']
+    log_headers = ['Date', 'Day', 'Start Surah', 'Start Page', 'End Surah (Optional)', 'End Page (Optional)', 'Notes / Specific Verses']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
         
     start_date = date.today()
     
-    log_sheet.set_column('Z:Z', None, None, {'hidden': True})
+    log_sheet.set_column('Z:AA', None, None, {'hidden': True})
     
-    # Populate Dropdown for Surahs (Unique list from SURAH_DATA)
+    # Populate the fixed Dropdown for Surahs in hidden Col AA
     for i, s in enumerate(SURAH_DATA):
-        log_sheet.write_string(i, 25, s[1]) # Write names to Z1:Z114
+        log_sheet.write_string(i, 26, s[1]) # Write names to AA1:AA90
         
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
     
@@ -242,11 +245,12 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         log_sheet.write_datetime(row, 0, current_date, date_format)
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
         
-        # Dropdown for Surah
-        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$114', 'ignore_blank': True})
+        # Fixed Dropdowns for Start and End Surahs
+        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$AA$1:$AA${total_surahs}', 'ignore_blank': True})
+        log_sheet.data_validation(row, 4, row, 4, {'validate': 'list', 'source': f'=$AA$1:$AA${total_surahs}', 'ignore_blank': True})
         
-        # Hidden Column Z for internal boundary math: defaults End Page to Start Page if empty
-        log_sheet.write_formula(row, 25, f'=IF(ISBLANK(E{row+1}), D{row+1}, E{row+1})')
+        # Hidden Column Z: defaults End Page (F) to Start Page (D) if left blank!
+        log_sheet.write_formula(row, 25, f'=IF(ISBLANK(F{row+1}), D{row+1}, F{row+1})')
         
     workbook.close()
     
