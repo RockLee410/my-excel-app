@@ -31,7 +31,40 @@ SURAH_DATA = [
     (89, "Al-Fajr", 30, 1.5),
     (90, "Al-Balad to An-Nas", 208, 10)
 ]
-surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
+
+# --- DYNAMIC SURAH SPLITTER (>= 15 Pages) ---
+EXPANDED_SURAH_DATA = []
+for s in SURAH_DATA:
+    if s[3] >= 15:
+        total_verses = s[2]
+        total_pages = s[3]
+        parts = int(total_pages // 5)
+        remainder = total_pages % 5
+       
+        verses_accumulated = 0
+        start_page = 1
+       
+        for p in range(parts):
+            end_page = start_page + 4
+            # If this is the absolute last chunk (because there's no remainder), give it the remaining verses to prevent rounding errors
+            if p == parts - 1 and remainder == 0:
+                verse_est = total_verses - verses_accumulated
+            else:
+                verse_est = int(round(total_verses * (5 / total_pages)))
+           
+            verses_accumulated += verse_est
+            EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} (Pages {start_page}-{end_page})", verse_est, 5))
+            start_page += 5
+           
+        if remainder > 0:
+            verse_est = total_verses - verses_accumulated
+            end_page = int(start_page + remainder - 1)
+            page_label = f"Page {start_page}" if start_page == end_page else f"Pages {start_page}-{end_page}"
+            EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} ({page_label})", verse_est, remainder))
+    else:
+        EXPANDED_SURAH_DATA.append(s)
+
+surah_options = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA]
 
 # --- STREAMLIT UI & SESSION STATE ---
 st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
@@ -40,28 +73,37 @@ if 'cat1' not in st.session_state: st.session_state['cat1'] = []
 if 'cat2' not in st.session_state: st.session_state['cat2'] = []
 
 def add_juz_30():
-    juz_30 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]
+    juz_30 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if s[0] >= 78]
     st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_30))
 
 def add_juz_29():
-    juz_29 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]
+    juz_29 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if 67 <= s[0] <= 77]
     st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_29))
 
 def add_juz_30_cat2():
-    juz_30 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]
+    juz_30 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if s[0] >= 78]
     st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_30))
 
 def add_juz_29_cat2():
-    juz_29 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]
+    juz_29 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if 67 <= s[0] <= 77]
     st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_29))
 
-st.title("📖 Quran Memorization Tracker")
+col_title, col_btn = st.columns([4, 1])
+with col_title:
+    st.title("📖 Quran Memorization Tracker")
+with col_btn:
+    st.write("")
+    if st.button("🗑️ Clear All Selections"):
+        st.session_state['cat1'] = []
+        st.session_state['cat2'] = []
+        st.rerun()
+
 st.write("Generate a custom daily Excel tracker based on your memorization progress.")
 
 st.markdown("### ⏳ Daily Commitment")
 daily_time = st.text_input("How much time will you dedicate to the Quran daily?", placeholder="e.g., 30 minutes, 1 hour")
 
-st.markdown("### 🗂️ Categorize the Surahs")
+st.markdown("### 🗂️ Categorize the Surahs (Long Surahs are split into 5-page parts!)")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -80,9 +122,9 @@ with col4:
 cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=surah_options, key='cat2')
 
 # --- EXCEL GENERATION LOGIC ---
-if st.button("Generate My Custom Excel Tracker"):
+if st.button("Generate My Custom Excel Tracker", type="primary"):
     tracker_data = []
-    for s in SURAH_DATA:
+    for s in EXPANDED_SURAH_DATA:
         surah_string = f"{s[0]}. {s[1]}"
         if surah_string in cat1_selections:
             category = "1 - Confident"
@@ -111,7 +153,7 @@ if st.button("Generate My Custom Excel Tracker"):
     header_format = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
     bold_format = workbook.add_format({'bold': True})
     progress_format = workbook.add_format({'bold': True, 'font_color': '#006100', 'font_size': 14})
-    link_format = workbook.add_format({'bold': True, 'font_color': 'blue', 'underline': True})
+    fire_format = workbook.add_format({'bold': True, 'font_color': '#D9534F', 'font_size': 14})
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd', 'border': 1})
     border_format = workbook.add_format({'border': 1})
     formula_gray_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'num_format': 'yyyy-mm-dd'})
@@ -119,12 +161,15 @@ if st.button("Generate My Custom Excel Tracker"):
     red_bg = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
     green_bg = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
    
-    # --- SHEET 1: SURAH DASHBOARD & VISUALS ---
+    total_items = len(EXPANDED_SURAH_DATA)
+    last_dash_row = total_items + 5
+   
+    # --- SHEET 1: SURAH DASHBOARD ---
     worksheet = workbook.add_worksheet('Surah Dashboard')
     worksheet.freeze_panes(5, 2)
    
     worksheet.set_column('A:A', 5)
-    worksheet.set_column('B:B', 25)
+    worksheet.set_column('B:B', 32)
     worksheet.set_column('C:C', 12)
     worksheet.set_column('D:D', 12)
     worksheet.set_column('E:E', 20)
@@ -132,10 +177,14 @@ if st.button("Generate My Custom Excel Tracker"):
     worksheet.set_column('G:G', 18)
     worksheet.set_column('H:H', 15)
     worksheet.set_column('I:I', 20)
+    worksheet.set_column('J:J', None, None, {'hidden': True})
 
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
-    worksheet.write('A2', "Rule: Category 1 Surahs must be revised every 14 days. Prioritize Category 2 before starting Category 3.")
-    worksheet.write_formula('A3', '="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E95, "1 - Confident", D6:D95)/604, "0.0%") & " (" & SUMIF(E6:E95, "1 - Confident", D6:D95) & " / 604 pages)"', progress_format)
+    worksheet.write('A2', "Rule: Category 1 & 2 Surahs must be revised every 14 days.")
+    worksheet.write_formula('A3', f'="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E{last_dash_row}, "1 - Confident", D6:D{last_dash_row})/604, "0.0%") & " (" & SUMIF(E6:E{last_dash_row}, "1 - Confident", D6:D{last_dash_row}) & " / 604 pages)"', progress_format)
+   
+    # --- CONSISTENCY TRACKER ---
+    worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C1001) & " Days"', fire_format)
    
     headers = list(df.columns)
     for col_num, data in enumerate(headers):
@@ -149,7 +198,9 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
         worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
-        range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$A{excel_row+1}, Daily_Log!$I$2:$I$1001, ">="&$A{excel_row+1}, Daily_Log!$E$2:$E$1001, "Yes")=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$A{excel_row+1}, Daily_Log!$I$2:$I$1001, ">="&$A{excel_row+1}, Daily_Log!$E$2:$E$1001, "Yes"))'
+        # New Bulletproof Internal Math: We hardcode the exact index number into the maxifs query!
+        item_index = row_num + 1
+        range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<={item_index}", Daily_Log!$I$2:$I$1001, ">={item_index}", Daily_Log!$E$2:$E$1001, "Yes")=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<={item_index}", Daily_Log!$I$2:$I$1001, ">={item_index}", Daily_Log!$E$2:$E$1001, "Yes"))'
         worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
        
         f_formula = f'=IF(OR(E{excel_row+1}="1 - Confident", E{excel_row+1}="2 - Needs Revision"), IF(F{excel_row+1}="", "", F{excel_row+1}+14), "")'
@@ -159,25 +210,27 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write_formula(excel_row, 7, g_formula, border_format)
        
         worksheet.write_blank(excel_row, 8, None, border_format)
+       
+        # Write the full concatenated string to hidden column J so the Daily Log can exact-match it
+        worksheet.write_formula(excel_row, 9, f'=$A{excel_row+1} & ". " & $B{excel_row+1}')
 
-    for row in range(5, len(df) + 5):
+    for row in range(5, last_dash_row):
         worksheet.data_validation(row, 4, row, 4, {
             'validate': 'list',
             'source': ['1 - Confident', '2 - Needs Revision', '3 - Not Memorized']
         })
        
-    worksheet.conditional_format('H6:H95', {'type': 'cell', 'criteria': '==', 'value': '"🔴 Overdue"', 'format': red_bg})
-    worksheet.conditional_format('H6:H95', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
+    worksheet.conditional_format(f'H6:H{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🔴 Overdue"', 'format': red_bg})
+    worksheet.conditional_format(f'H6:H{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
 
-    last_row = len(df) + 5
     worksheet.write('L4', 'Category', header_format)
     worksheet.write('M4', 'Total Pages', header_format)
     worksheet.write('L5', '1 - Confident')
-    worksheet.write_formula('M5', f'=SUMIF($E$6:$E${last_row}, "1 - Confident", $D$6:$D${last_row})')
+    worksheet.write_formula('M5', f'=SUMIF($E$6:$E${last_dash_row}, "1 - Confident", $D$6:$D${last_dash_row})')
     worksheet.write('L6', '2 - Needs Revision')
-    worksheet.write_formula('M6', f'=SUMIF($E$6:$E${last_row}, "2 - Needs Revision", $D$6:$D${last_row})')
+    worksheet.write_formula('M6', f'=SUMIF($E$6:$E${last_dash_row}, "2 - Needs Revision", $D$6:$D${last_dash_row})')
     worksheet.write('L7', '3 - Not Memorized')
-    worksheet.write_formula('M7', f'=SUMIF($E$6:$E${last_row}, "3 - Not Memorized", $D$6:$D${last_row})')
+    worksheet.write_formula('M7', f'=SUMIF($E$6:$E${last_dash_row}, "3 - Not Memorized", $D$6:$D${last_dash_row})')
 
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({
@@ -195,12 +248,11 @@ if st.button("Generate My Custom Excel Tracker"):
    
     log_sheet.set_column('A:A', 15, date_format)
     log_sheet.set_column('B:B', 15)
-    log_sheet.set_column('C:C', 25)
-    log_sheet.set_column('D:D', 25)
+    log_sheet.set_column('C:C', 35)
+    log_sheet.set_column('D:D', 35)
     log_sheet.set_column('E:E', 25)
     log_sheet.set_column('F:F', 25)
     log_sheet.set_column('G:G', 25)
-    log_sheet.set_column('J:J', 25) # Give the hyperlink column some breathing room
    
     log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)', 'Completed Surah Today?', 'Specific Verses (If No)', 'Type (Revision/New)']
     for col_num, data in enumerate(log_headers):
@@ -208,17 +260,13 @@ if st.button("Generate My Custom Excel Tracker"):
        
     start_date = date.today()
    
-    # --- MOVED HYPERLINK ---
-    # Now perfectly frozen in J1, referencing the same sheet safely!
-    hyperlink_formula = f'=HYPERLINK("#A" & (TODAY() - DATE({start_date.year}, {start_date.month}, {start_date.day}) + 2), "📅 JUMP TO TODAY")'
-    log_sheet.write_formula('J1', hyperlink_formula, link_format)
-
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
     log_sheet.set_column('H:I', None, None, {'hidden': True})
    
-    for i in range(90):
+    # Generate the dynamic list for the dropdowns
+    for i in range(total_items):
         dash_row = i + 6
-        log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!E{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!A{dash_row} & ". " & \'Surah Dashboard\'!B{dash_row}, "")')
+        log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!E{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!J{dash_row}, "")')
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
@@ -228,13 +276,14 @@ if st.button("Generate My Custom Excel Tracker"):
         log_sheet.write_datetime(row, 0, current_date, date_format)
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
        
-        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$90', 'ignore_blank': True})
-        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': '=$Z$1:$Z$90', 'ignore_blank': True})
+        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$Z$1:$Z${total_items}', 'ignore_blank': True})
+        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$Z$1:$Z${total_items}', 'ignore_blank': True})
         log_sheet.data_validation(row, 4, row, 4, {'validate': 'list', 'source': ['Yes', 'No']})
         log_sheet.data_validation(row, 6, row, 6, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
        
-        log_sheet.write_formula(row, 7, f'=IFERROR(VALUE(LEFT(C{row+1}, FIND(".", C{row+1})-1)), 0)')
-        log_sheet.write_formula(row, 8, f'=IFERROR(IF(D{row+1}="", H{row+1}, VALUE(LEFT(D{row+1}, FIND(".", D{row+1})-1))), 0)')
+        # Exact matching IDs to solve the "Split Surah" Bulk Logging!
+        log_sheet.write_formula(row, 7, f'=IFERROR(MATCH(C{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0), 0)')
+        log_sheet.write_formula(row, 8, f'=IFERROR(IF(D{row+1}="", H{row+1}, MATCH(D{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)), 0)')
        
     workbook.close()
    
