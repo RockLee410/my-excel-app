@@ -145,7 +145,7 @@ if st.button("Generate My Custom Excel Tracker"):
 
     # --- SHEET 2: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily Log')
-    log_sheet.set_column('A:A', 15)
+    log_sheet.set_column('A:A', 15, date_format)
     log_sheet.set_column('B:B', 15)
     log_sheet.set_column('C:C', 25)
     log_sheet.set_column('D:D', 25)
@@ -179,8 +179,8 @@ if st.button("Generate My Custom Excel Tracker"):
         log_sheet.data_validation(row, 4, row, 4, {'validate': 'list', 'source': ['Yes', 'No']})
         log_sheet.data_validation(row, 6, row, 6, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
        
-        log_sheet.write_formula(row, 7, f'=IF(C{row+1}="", 0 VALUE(LEFT(C{row+1}, FIND(".", C{row+1})-1)))')
-        log_sheet.write_formula(row, 8, f'=IF(C{row+1}="", 0 IF(D{row+1}="", H{row+1}, VALUE(LEFT(D{row+1}, FIND(".", D{row+1})-1))))')
+        log_sheet.write_formula(row, 7, f'=IFERROR(VALUE(LEFT(C{row+1}, FIND(".", C{row+1})-1)), 0)')
+        log_sheet.write_formula(row, 8, f'=IFERROR(IF(D{row+1}="", H{row+1}, VALUE(LEFT(D{row+1}, FIND(".", D{row+1})-1))), 0)')
        
     workbook.close()
    
