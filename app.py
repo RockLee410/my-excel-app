@@ -5,9 +5,10 @@ from io import BytesIO
 from datetime import date, timedelta
 
 # --- DATA: Surahs 1-89, plus grouped 90-114 ---
+# Corrected Al-Ma'idah (22 pages) and Al-A'raf (27 pages) for perfect Madinah Mushaf math
 SURAH_DATA = [
     (1, "Al-Fatihah", 7, 1), (2, "Al-Baqarah", 286, 48), (3, "Aal-Imran", 200, 27), (4, "An-Nisa", 176, 29),
-    (5, "Al-Ma'idah", 120, 21), (6, "Al-An'am", 165, 23), (7, "Al-A'raf", 206, 26), (8, "Al-Anfal", 75, 10),
+    (5, "Al-Ma'idah", 120, 22), (6, "Al-An'am", 165, 23), (7, "Al-A'raf", 206, 27), (8, "Al-Anfal", 75, 10),
     (9, "At-Tawbah", 129, 21), (10, "Yunus", 109, 13), (11, "Hud", 123, 13), (12, "Yusuf", 111, 13),
     (13, "Ar-Ra'd", 43, 6), (14, "Ibrahim", 52, 7), (15, "Al-Hijr", 99, 5), (16, "An-Nahl", 128, 15),
     (17, "Al-Isra", 111, 11), (18, "Al-Kahf", 110, 11), (19, "Maryam", 98, 7), (20, "Taha", 135, 10),
@@ -32,34 +33,38 @@ SURAH_DATA = [
     (90, "Al-Balad to An-Nas", 208, 10)
 ]
 
-# --- DYNAMIC SURAH SPLITTER (>= 15 Pages) ---
+# Actual start pages in the Madinah Mushaf for Surahs >= 15 pages
+MADINAH_START_PAGES = {
+    2: 2, 3: 50, 4: 77, 5: 106, 6: 128, 7: 151, 9: 187, 16: 267
+}
+
+# --- DYNAMIC SURAH SPLITTER (>= 15 Pages, Using Absolute Page Numbers) ---
 EXPANDED_SURAH_DATA = []
 for s in SURAH_DATA:
     if s[3] >= 15:
         total_verses = s[2]
-        total_pages = s[3]
-        parts = int(total_pages // 5)
+        total_pages = int(s[3])
+        parts = total_pages // 5
         remainder = total_pages % 5
        
         verses_accumulated = 0
-        start_page = 1
+        current_page = MADINAH_START_PAGES.get(s[0], 1)
        
         for p in range(parts):
-            end_page = start_page + 4
-            # If this is the absolute last chunk (because there's no remainder), give it the remaining verses to prevent rounding errors
+            end_page = current_page + 4
             if p == parts - 1 and remainder == 0:
                 verse_est = total_verses - verses_accumulated
             else:
                 verse_est = int(round(total_verses * (5 / total_pages)))
            
             verses_accumulated += verse_est
-            EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} (Pages {start_page}-{end_page})", verse_est, 5))
-            start_page += 5
+            EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} (Pages {current_page}-{end_page})", verse_est, 5))
+            current_page += 5
            
         if remainder > 0:
             verse_est = total_verses - verses_accumulated
-            end_page = int(start_page + remainder - 1)
-            page_label = f"Page {start_page}" if start_page == end_page else f"Pages {start_page}-{end_page}"
+            end_page = current_page + remainder - 1
+            page_label = f"Page {current_page}" if current_page == end_page else f"Pages {current_page}-{end_page}"
             EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} ({page_label})", verse_est, remainder))
     else:
         EXPANDED_SURAH_DATA.append(s)
@@ -103,7 +108,7 @@ st.write("Generate a custom daily Excel tracker based on your memorization progr
 st.markdown("### ⏳ Daily Commitment")
 daily_time = st.text_input("How much time will you dedicate to the Quran daily?", placeholder="e.g., 30 minutes, 1 hour")
 
-st.markdown("### 🗂️ Categorize the Surahs (Long Surahs are split into 5-page parts!)")
+st.markdown("### 🗂️ Categorize the Surahs (Long Surahs split into 5-page parts!)")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -183,7 +188,7 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     worksheet.write('A2', "Rule: Category 1 & 2 Surahs must be revised every 14 days.")
     worksheet.write_formula('A3', f'="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E{last_dash_row}, "1 - Confident", D6:D{last_dash_row})/604, "0.0%") & " (" & SUMIF(E6:E{last_dash_row}, "1 - Confident", D6:D{last_dash_row}) & " / 604 pages)"', progress_format)
    
-    # --- CONSISTENCY TRACKER ---
+    # Consistency Tracker (Hyperlink removed completely)
     worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C1001) & " Days"', fire_format)
    
     headers = list(df.columns)
@@ -198,7 +203,6 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
         worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
-        # New Bulletproof Internal Math: We hardcode the exact index number into the maxifs query!
         item_index = row_num + 1
         range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<={item_index}", Daily_Log!$I$2:$I$1001, ">={item_index}", Daily_Log!$E$2:$E$1001, "Yes")=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<={item_index}", Daily_Log!$I$2:$I$1001, ">={item_index}", Daily_Log!$E$2:$E$1001, "Yes"))'
         worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
@@ -263,7 +267,6 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
     log_sheet.set_column('H:I', None, None, {'hidden': True})
    
-    # Generate the dynamic list for the dropdowns
     for i in range(total_items):
         dash_row = i + 6
         log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!E{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!J{dash_row}, "")')
@@ -281,7 +284,6 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         log_sheet.data_validation(row, 4, row, 4, {'validate': 'list', 'source': ['Yes', 'No']})
         log_sheet.data_validation(row, 6, row, 6, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
        
-        # Exact matching IDs to solve the "Split Surah" Bulk Logging!
         log_sheet.write_formula(row, 7, f'=IFERROR(MATCH(C{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0), 0)')
         log_sheet.write_formula(row, 8, f'=IFERROR(IF(D{row+1}="", H{row+1}, MATCH(D{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)), 0)')
        
