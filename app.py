@@ -135,14 +135,7 @@ if st.button("Generate My Custom Excel Tracker"):
 
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
     worksheet.write('A2', "Rule: Category 1 Surahs must be revised every 14 days. Prioritize Category 2 before starting Category 3.")
-   
     worksheet.write_formula('A3', '="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E95, "1 - Confident", D6:D95)/604, "0.0%") & " (" & SUMIF(E6:E95, "1 - Confident", D6:D95) & " / 604 pages)"', progress_format)
-   
-    # --- THE FIXED HYPERLINK ---
-    # Now targets #Daily_Log without quotes or spaces, eliminating URL encoding issues!
-    start_date = date.today()
-    hyperlink_formula = f'=HYPERLINK("#Daily_Log!A" & (TODAY() - DATE({start_date.year}, {start_date.month}, {start_date.day}) + 2), "📅 CLICK HERE TO JUMP TO TODAY\'S LOG ENTRY")'
-    worksheet.write_formula('A4', hyperlink_formula, link_format)
    
     headers = list(df.columns)
     for col_num, data in enumerate(headers):
@@ -156,7 +149,6 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
         worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
-        # Formulas updated to match the new 'Daily_Log' sheet name
         range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$A{excel_row+1}, Daily_Log!$I$2:$I$1001, ">="&$A{excel_row+1}, Daily_Log!$E$2:$E$1001, "Yes")=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$A{excel_row+1}, Daily_Log!$I$2:$I$1001, ">="&$A{excel_row+1}, Daily_Log!$E$2:$E$1001, "Yes"))'
         worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
        
@@ -198,7 +190,7 @@ if st.button("Generate My Custom Excel Tracker"):
     worksheet.insert_chart('L9', chart, {'x_scale': 1.2, 'y_scale': 1.2})
 
     # --- SHEET 2: DAILY LOG ---
-    log_sheet = workbook.add_worksheet('Daily_Log') # Re-named without a space
+    log_sheet = workbook.add_worksheet('Daily_Log')
     log_sheet.freeze_panes(1, 0)
    
     log_sheet.set_column('A:A', 15, date_format)
@@ -208,11 +200,19 @@ if st.button("Generate My Custom Excel Tracker"):
     log_sheet.set_column('E:E', 25)
     log_sheet.set_column('F:F', 25)
     log_sheet.set_column('G:G', 25)
+    log_sheet.set_column('J:J', 25) # Give the hyperlink column some breathing room
    
     log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)', 'Completed Surah Today?', 'Specific Verses (If No)', 'Type (Revision/New)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
        
+    start_date = date.today()
+   
+    # --- MOVED HYPERLINK ---
+    # Now perfectly frozen in J1, referencing the same sheet safely!
+    hyperlink_formula = f'=HYPERLINK("#A" & (TODAY() - DATE({start_date.year}, {start_date.month}, {start_date.day}) + 2), "📅 JUMP TO TODAY")'
+    log_sheet.write_formula('J1', hyperlink_formula, link_format)
+
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
     log_sheet.set_column('H:I', None, None, {'hidden': True})
    
