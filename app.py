@@ -5,7 +5,6 @@ from io import BytesIO
 from datetime import date, timedelta
 
 # --- DATA: Surahs 1-89, plus grouped 90-114 ---
-# Corrected Al-Ma'idah (22 pages) and Al-A'raf (27 pages) for perfect Madinah Mushaf math
 SURAH_DATA = [
     (1, "Al-Fatihah", 7, 1), (2, "Al-Baqarah", 286, 48), (3, "Aal-Imran", 200, 27), (4, "An-Nisa", 176, 29),
     (5, "Al-Ma'idah", 120, 22), (6, "Al-An'am", 165, 23), (7, "Al-A'raf", 206, 27), (8, "Al-Anfal", 75, 10),
@@ -188,7 +187,6 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     worksheet.write('A2', "Rule: Category 1 & 2 Surahs must be revised every 14 days.")
     worksheet.write_formula('A3', f'="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E{last_dash_row}, "1 - Confident", D6:D{last_dash_row})/604, "0.0%") & " (" & SUMIF(E6:E{last_dash_row}, "1 - Confident", D6:D{last_dash_row}) & " / 604 pages)"', progress_format)
    
-    # Consistency Tracker (Hyperlink removed completely)
     worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C1001) & " Days"', fire_format)
    
     headers = list(df.columns)
@@ -203,8 +201,10 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
         worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
+        # --- NEW MATH ENGINE ---
+        # Checks Columns E and F in Daily Log, no longer requires the "Yes" string to trigger
         item_index = row_num + 1
-        range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<={item_index}", Daily_Log!$I$2:$I$1001, ">={item_index}", Daily_Log!$E$2:$E$1001, "Yes")=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<={item_index}", Daily_Log!$I$2:$I$1001, ">={item_index}", Daily_Log!$E$2:$E$1001, "Yes"))'
+        range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$E$2:$E$1001, "<={item_index}", Daily_Log!$F$2:$F$1001, ">={item_index}")=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$E$2:$E$1001, "<={item_index}", Daily_Log!$F$2:$F$1001, ">={item_index}"))'
         worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
        
         f_formula = f'=IF(OR(E{excel_row+1}="1 - Confident", E{excel_row+1}="2 - Needs Revision"), IF(F{excel_row+1}="", "", F{excel_row+1}+14), "")'
@@ -215,7 +215,6 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
        
         worksheet.write_blank(excel_row, 8, None, border_format)
        
-        # Write the full concatenated string to hidden column J so the Daily Log can exact-match it
         worksheet.write_formula(excel_row, 9, f'=$A{excel_row+1} & ". " & $B{excel_row+1}')
 
     for row in range(5, last_dash_row):
@@ -254,18 +253,17 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     log_sheet.set_column('B:B', 15)
     log_sheet.set_column('C:C', 35)
     log_sheet.set_column('D:D', 35)
-    log_sheet.set_column('E:E', 25)
-    log_sheet.set_column('F:F', 25)
-    log_sheet.set_column('G:G', 25)
    
-    log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)', 'Completed Surah Today?', 'Specific Verses (If No)', 'Type (Revision/New)']
+    # Reduced header payload
+    log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
        
     start_date = date.today()
    
+    # Hide the ID Math Columns (Now E and F) and Dropdown Column (Z)
+    log_sheet.set_column('E:F', None, None, {'hidden': True})
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
-    log_sheet.set_column('H:I', None, None, {'hidden': True})
    
     for i in range(total_items):
         dash_row = i + 6
@@ -281,11 +279,10 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
        
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$Z$1:$Z${total_items}', 'ignore_blank': True})
         log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$Z$1:$Z${total_items}', 'ignore_blank': True})
-        log_sheet.data_validation(row, 4, row, 4, {'validate': 'list', 'source': ['Yes', 'No']})
-        log_sheet.data_validation(row, 6, row, 6, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
        
-        log_sheet.write_formula(row, 7, f'=IFERROR(MATCH(C{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0), 0)')
-        log_sheet.write_formula(row, 8, f'=IFERROR(IF(D{row+1}="", H{row+1}, MATCH(D{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)), 0)')
+        # Internal Math moved to Columns E and F (Indexes 4 and 5)
+        log_sheet.write_formula(row, 4, f'=IFERROR(MATCH(C{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0), 0)')
+        log_sheet.write_formula(row, 5, f'=IFERROR(IF(D{row+1}="", E{row+1}, MATCH(D{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)), 0)')
        
     workbook.close()
    
