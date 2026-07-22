@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import xlsxwriter
 from io import BytesIO
-from datetime import date, timedelta  # <-- NEW: Imported for date calculation
+from datetime import date, timedelta
 
 # --- DATA: Surahs 1-89, plus grouped 90-114 ---
 SURAH_DATA = [
@@ -110,7 +110,8 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
         worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
-        range_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1})=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}))'
+        # --- NEW: MAXIFS now strictly requires Column E ("Completed Surah Today?") to be "Yes" ---
+        range_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}, \'Daily Log\'!$E$2:$E$1001, "Yes")=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}, \'Daily Log\'!$E$2:$E$1001, "Yes"))'
         worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
        
         f_formula = f'=IF(OR(E{excel_row+1}="1 - Confident", E{excel_row+1}="2 - Needs Revision"), IF(F{excel_row+1}="", "", F{excel_row+1}+14), "")'
@@ -153,11 +154,12 @@ if st.button("Generate My Custom Excel Tracker"):
     log_sheet.set_column('B:B', 15)
     log_sheet.set_column('C:C', 25)
     log_sheet.set_column('D:D', 25)
-    log_sheet.set_column('E:E', 15)
+    log_sheet.set_column('E:E', 25)
     log_sheet.set_column('F:F', 25)
     log_sheet.set_column('G:G', 25)
    
-    log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)', 'Full Surah?', 'Specific Verses (If No)', 'Type (Revision/New)']
+    # --- NEW: Header changed to clarify when the Dashboard date resets ---
+    log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)', 'Completed Surah Today?', 'Specific Verses (If No)', 'Type (Revision/New)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
        
@@ -170,17 +172,12 @@ if st.button("Generate My Custom Excel Tracker"):
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
-    # --- NEW: Get today's date for auto-filling ---
     start_date = date.today()
    
     for row in range(1, 1001):
-        # Calculate the date for this specific row (adds 1 day per row)
         current_date = start_date + timedelta(days=row-1)
        
-        # Write the actual Date into Column A
         log_sheet.write_datetime(row, 0, current_date, date_format)
-       
-        # Write the auto-calculating Day into Column B
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
        
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$90', 'ignore_blank': True})
