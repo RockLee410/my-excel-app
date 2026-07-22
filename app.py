@@ -79,6 +79,7 @@ if st.button("Generate My Custom Excel Tracker"):
     bold_format = workbook.add_format({'bold': True})
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd', 'border': 1})
     border_format = workbook.add_format({'border': 1})
+    formula_gray_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'num_format': 'yyyy-mm-dd'})
    
     # --- SHEET 1: SURAH DASHBOARD & VISUALS ---
     worksheet = workbook.add_worksheet('Surah Dashboard')
@@ -103,29 +104,43 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write(excel_row, 0, df.iloc[row_num]['No.'], border_format)
         worksheet.write(excel_row, 1, df.iloc[row_num]['Surah'], border_format)
         worksheet.write(excel_row, 2, df.iloc[row_num]['Total Verses'], border_format)
+       
+        # Category Column (Initial Value)
         worksheet.write(excel_row, 3, df.iloc[row_num]['Category'], border_format)
-        worksheet.write_blank(excel_row, 4, None, date_format)
-        f_formula = f'=IF(ISBLANK(E{excel_row+1}), "", E{excel_row+1}+14)'
-        worksheet.write_formula(excel_row, 5, f_formula, date_format)
-        g_formula = f'=IF(ISBLANK(E{excel_row+1}), "Pending", IF(TODAY()>F{excel_row+1}, "🔴 Overdue", "🟢 Good"))'
+       
+        # AUTOMATED Last Revised Date: MAXIFS finding the newest date from the Daily Log
+        e_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$C$2:$C$1001, B{excel_row+1})=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$C$2:$C$1001, B{excel_row+1}))'
+        worksheet.write_formula(excel_row, 4, e_formula, formula_gray_format)
+       
+        # Next Revision Due (Only calculates if it is Category 1)
+        f_formula = f'=IF(D{excel_row+1}="1 - Confident", IF(E{excel_row+1}="", "", E{excel_row+1}+14), "")'
+        worksheet.write_formula(excel_row, 5, f_formula, formula_gray_format)
+       
+        # Status (Custom messages based on Category)
+        g_formula = f'=IF(D{excel_row+1}="3 - Not Memorized", "⚪ Not Started", IF(D{excel_row+1}="2 - Needs Revision", "🟡 In Progress", IF(E{excel_row+1}="", "Pending", IF(TODAY()>F{excel_row+1}, "🔴 Overdue", "🟢 Good"))))'
         worksheet.write_formula(excel_row, 6, g_formula, border_format)
+       
         worksheet.write_blank(excel_row, 7, None, border_format)
 
-    # Add Chart Data Summary Table (Hidden to the side)
-    cat1_count = len(cat1_selections)
-    cat2_count = len(cat2_selections)
-    cat3_count = 90 - (cat1_count + cat2_count)
+    # Make the Dashboard Categories Editable with Dropdowns
+    for row in range(5, len(df) + 5):
+        worksheet.data_validation(row, 3, row, 3, {
+            'validate': 'list',
+            'source': ['1 - Confident', '2 - Needs Revision', '3 - Not Memorized']
+        })
 
+    # Add Dynamic Chart Data Summary Table (Hidden to the side)
+    last_row = len(df) + 5
     worksheet.write('J4', 'Category', header_format)
     worksheet.write('K4', 'Count', header_format)
     worksheet.write('J5', '1 - Confident')
-    worksheet.write('K5', cat1_count)
+    worksheet.write_formula('K5', f'=COUNTIF($D$6:$D${last_row}, "1 - Confident")')
     worksheet.write('J6', '2 - Needs Revision')
-    worksheet.write('K6', cat2_count)
+    worksheet.write_formula('K6', f'=COUNTIF($D$6:$D${last_row}, "2 - Needs Revision")')
     worksheet.write('J7', '3 - Not Memorized')
-    worksheet.write('K7', cat3_count)
+    worksheet.write_formula('K7', f'=COUNTIF($D$6:$D${last_row}, "3 - Not Memorized")')
 
-    # Create the Pie Chart
+    # Create the Live Pie Chart
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({
         'name': 'Memorization Progress',
@@ -143,13 +158,12 @@ if st.button("Generate My Custom Excel Tracker"):
     # --- SHEET 2: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily Log')
     log_sheet.set_column('A:A', 15)
-    log_sheet.set_column('B:B', 15) # Day column
+    log_sheet.set_column('B:B', 15)
     log_sheet.set_column('C:C', 30)
     log_sheet.set_column('D:D', 15)
     log_sheet.set_column('E:E', 25)
     log_sheet.set_column('F:F', 25)
    
-    # Added "Day" header
     log_headers = ['Date', 'Day', 'Surah', 'Full Surah?', 'Specific Verses (If No)', 'Type (Revision/New)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
@@ -158,14 +172,10 @@ if st.button("Generate My Custom Excel Tracker"):
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
     log_sheet.write_column('Z1', surah_names)
    
-    # Format for automated Day column
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
     for row in range(1, 1001):
-        # Auto-calculate Day based on Date (Column A to Column B)
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
-       
-        # Shifted dropdowns over by 1 column because of the new 'Day' column
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$90'})
         log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': ['Yes', 'No']})
         log_sheet.data_validation(row, 5, row, 5, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
