@@ -160,9 +160,12 @@ if st.button("Generate My Custom Excel Tracker"):
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
     log_sheet.set_column('H:I', None, None, {'hidden': True})
    
-    # --- NEW: LIVE EXCEL FORMULA FOR DROPDOWN ---
-    # This formula filters the Dashboard list and ignores anything marked "3 - Not Memorized"
-    log_sheet.write_dynamic_array_formula('Z1:Z90', '=IFERROR(FILTER(\'Surah Dashboard\'!B6:B95, \'Surah Dashboard\'!D6:D95<>"3 - Not Memorized"), "No Active Surahs")')
+    # --- BULLETPROOF GOOGLE SHEETS DROPDOWN METHOD ---
+    # We write a simple IF statement for every single Surah.
+    # Google Sheets dropdowns automatically ignore the blank cells!
+    for i in range(90):
+        dash_row = i + 6
+        log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!D{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!B{dash_row}, "")')
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
