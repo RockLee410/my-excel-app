@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import xlsxwriter
 from io import BytesIO
+from datetime import date, timedelta  # <-- NEW: Imported for date calculation
 
 # --- DATA: Surahs 1-89, plus grouped 90-114 ---
-# Now includes a 4th value: Exact Page Count (based on Madinah Mushaf)
 SURAH_DATA = [
     (1, "Al-Fatihah", 7, 1), (2, "Al-Baqarah", 286, 48), (3, "Aal-Imran", 200, 27), (4, "An-Nisa", 176, 29),
     (5, "Al-Ma'idah", 120, 21), (6, "Al-An'am", 165, 23), (7, "Al-A'raf", 206, 26), (8, "Al-Anfal", 75, 10),
@@ -30,7 +30,6 @@ SURAH_DATA = [
     (85, "Al-Buruj", 22, 1), (86, "At-Tariq", 17, 0.5), (87, "Al-A'la", 19, 0.5), (88, "Al-Ghashiyah", 26, 1),
     (89, "Al-Fajr", 30, 1.5),
     (90, "Al-Balad to An-Nas", 208, 10)
-
 ]
 
 # --- STREAMLIT UI ---
@@ -128,7 +127,6 @@ if st.button("Generate My Custom Excel Tracker"):
             'source': ['1 - Confident', '2 - Needs Revision', '3 - Not Memorized']
         })
 
-    # Updated Pie Chart math to sum the Pages (Col D) based on Category (Col E)
     last_row = len(df) + 5
     worksheet.write('L4', 'Category', header_format)
     worksheet.write('M4', 'Total Pages', header_format)
@@ -172,7 +170,17 @@ if st.button("Generate My Custom Excel Tracker"):
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
+    # --- NEW: Get today's date for auto-filling ---
+    start_date = date.today()
+   
     for row in range(1, 1001):
+        # Calculate the date for this specific row (adds 1 day per row)
+        current_date = start_date + timedelta(days=row-1)
+       
+        # Write the actual Date into Column A
+        log_sheet.write_datetime(row, 0, current_date, date_format)
+       
+        # Write the auto-calculating Day into Column B
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
        
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$90', 'ignore_blank': True})
