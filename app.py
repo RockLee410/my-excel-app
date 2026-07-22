@@ -163,9 +163,10 @@ if st.button("Generate My Custom Excel Tracker"):
     # --- BULLETPROOF GOOGLE SHEETS DROPDOWN METHOD ---
     # We write a simple IF statement for every single Surah.
     # Google Sheets dropdowns automatically ignore the blank cells!
+    # --- BULLETPROOF GOOGLE SHEETS DROPDOWN METHOD ---
     for i in range(90):
         dash_row = i + 6
-        log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!D{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!B{dash_row}, "")')
+        log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!D{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!A{dash_row} & ". " & \'Surah Dashboard\'!B{dash_row}, "")')
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
