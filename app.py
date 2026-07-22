@@ -109,10 +109,12 @@ if st.button("Generate My Custom Excel Tracker"):
         range_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1})=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}))'
         worksheet.write_formula(excel_row, 4, range_formula, formula_gray_format)
        
-        f_formula = f'=IF(D{excel_row+1}="1 - Confident", IF(E{excel_row+1}="", "", E{excel_row+1}+14), "")'
+        # Next Revision Due (Now calculates +14 days for BOTH Cat 1 and Cat 2)
+        f_formula = f'=IF(OR(D{excel_row+1}="1 - Confident", D{excel_row+1}="2 - Needs Revision"), IF(E{excel_row+1}="", "", E{excel_row+1}+14), "")'
         worksheet.write_formula(excel_row, 5, f_formula, formula_gray_format)
        
-        g_formula = f'=IF(D{excel_row+1}="3 - Not Memorized", "⚪ Not Started", IF(D{excel_row+1}="2 - Needs Revision", "🟡 In Progress", IF(E{excel_row+1}="", "Pending", IF(TODAY()>F{excel_row+1}, "🔴 Overdue", "🟢 Good"))))'
+        # Status (Now evaluates Good/Overdue for BOTH Cat 1 and Cat 2)
+        g_formula = f'=IF(D{excel_row+1}="3 - Not Memorized", "⚪ Not Started", IF(E{excel_row+1}="", "Pending", IF(TODAY()>F{excel_row+1}, "🔴 Overdue", "🟢 Good")))'
         worksheet.write_formula(excel_row, 6, g_formula, border_format)
        
         worksheet.write_blank(excel_row, 7, None, border_format)
