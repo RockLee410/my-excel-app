@@ -29,6 +29,59 @@ SURAH_DATA = [
     (85, "Al-Buruj", 22), (86, "At-Tariq", 17), (87, "Al-A'la", 19), (88, "Al-Ghashiyah", 26),
     (89, "Al-Fajr", 30),
     (90, "Al-Balad to An-Nas", 208) # Grouped item
+
+]
+
+# --- STREAMLIT UI ---
+st.set_page_config(page_title="Quran Memorization Tracker", layout="centered")
+
+st.title("📖 Quran Memorization Tracker")
+st.write("Generate a custom daily Excel tracker based on your memorization progress.")
+
+st.markdown("### ⏳ Daily Commitment")
+daily_time = st.text_input("How much time will you dedicate to the Quran daily?", placeholder="e.g., 30 minutes, 1 hour")
+
+st.markdown("### 🗂️ Categorize the Surahs")
+st.write("Select the Surahs for Categories 1 and 2. Any unselected Surahs will automatically be placed in Category 3 (Not Memorized).")
+
+surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
+
+# Category 1 Input
+cat1_selections = st.multiselect(
+    "🟢 Category 1: Memorized with Confidence",
+    options=surah_options,
+    help="These Surahs require revision once every 14 days."
+)
+
+# Filter out Cat 1 from Cat 2 options
+remaining_for_cat2 = [s for s in surah_options if s not in cat1_selections]
+
+# Category 2 Input
+cat2_selections = st.multiselect(
+    "🟡 Category 2: Needs Revision",
+    options=remaining_for_cat2,
+    help="These are your priority for daily revision."
+)
+
+# --- EXCEL GENERATION LOGIC ---
+if st.button("Generate My Custom Excel Tracker"):
+    # Build the base data
+    tracker_data = []
+    for s in SURAH_DATA:
+        surah_string = f"{s[0]}. {s[1]}"
+        if surah_string in cat1_selections:
+            category = "1 - Confident"
+        elif surah_string in cat2_selections:
+            category = "2 - Needs Revision"
+        else:
+            category = "3 - Not Memorized"
+           
+        tracker_data.append({
+            "No.": s[0],
+            "Surah": s[1],
+            "Total Verses": s[2],
+            "Category": category,
+            "Last Revised (Date)": "",  
             "Next Revision Due": "",    
             "Status": "",              
             "Notes": ""
