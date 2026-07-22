@@ -4,65 +4,33 @@ import xlsxwriter
 from io import BytesIO
 
 # --- DATA: Surahs 1-89, plus grouped 90-114 ---
+# Now includes a 4th value: Exact Page Count (based on Madinah Mushaf)
 SURAH_DATA = [
-    (1, "Al-Fatihah", 7), (2, "Al-Baqarah", 286), (3, "Aal-Imran", 200), (4, "An-Nisa", 176),
-    (5, "Al-Ma'idah", 120), (6, "Al-An'am", 165), (7, "Al-A'raf", 206), (8, "Al-Anfal", 75),
-    (9, "At-Tawbah", 129), (10, "Yunus", 109), (11, "Hud", 123), (12, "Yusuf", 111),
-    (13, "Ar-Ra'd", 43), (14, "Ibrahim", 52), (15, "Al-Hijr", 99), (16, "An-Nahl", 128),
-    (17, "Al-Isra", 111), (18, "Al-Kahf", 110), (19, "Maryam", 98), (20, "Taha", 135),
-    (21, "Al-Anbiya", 112), (22, "Al-Hajj", 78), (23, "Al-Mu'minun", 118), (24, "An-Nur", 64),
-    (25, "Al-Furqan", 77), (26, "Ash-Shu'ara", 227), (27, "An-Naml", 93), (28, "Al-Qasas", 88),
-    (29, "Al-Ankabut", 69), (30, "Ar-Rum", 60), (31, "Luqman", 34), (32, "As-Sajdah", 30),
-    (33, "Al-Ahzab", 73), (34, "Saba", 54), (35, "Fatir", 45), (36, "Ya-Sin", 83),
-    (37, "As-Saffat", 182), (38, "Sad", 88), (39, "Az-Zumar", 75), (40, "Ghafir", 85),
-    (41, "Fussilat", 54), (42, "Ash-Shura", 53), (43, "Az-Zukhruf", 89), (44, "Ad-Dukhan", 59),
-    (45, "Al-Jathiyah", 37), (46, "Al-Ahqaf", 35), (47, "Muhammad", 38), (48, "Al-Fath", 29),
-    (49, "Al-Hujurat", 18), (50, "Qaf", 45), (51, "Ad-Zariyat", 60), (52, "At-Tur", 49),
-    (53, "An-Najm", 62), (54, "Al-Qamar", 55), (55, "Ar-Rahman", 78), (56, "Al-Waqi'ah", 96),
-    (57, "Al-Hadid", 29), (58, "Al-Mujadila", 22), (59, "Al-Hashr", 24), (60, "Al-Mumtahanah", 13),
-    (61, "As-Saff", 14), (62, "Al-Jumu'ah", 11), (63, "Al-Munafiqun", 11), (64, "At-Taghabun", 18),
-    (65, "At-Talaq", 12), (66, "At-Tahrim", 12), (67, "Al-Mulk", 30), (68, "Al-Qalam", 52),
-    (69, "Al-Haqqah", 52), (70, "Al-Ma'arij", 44), (71, "Nuh", 28), (72, "Al-Jinn", 28),
-    (73, "Al-Muzzammil", 20), (74, "Al-Muddaththir", 56), (75, "Al-Qiyamah", 40), (76, "Al-Insan", 31),
-    (77, "Al-Mursalat", 50), (78, "An-Naba", 40), (79, "An-Nazi'at", 46), (80, "Abasa", 42),
-    (81, "At-Takwir", 29), (82, "Al-Infitar", 19), (83, "Al-Mutaffifin", 36), (84, "Al-Inshiqaq", 25),
-    (85, "Al-Buruj", 22), (86, "At-Tariq", 17), (87, "Al-A'la", 19), (88, "Al-Ghashiyah", 26),
-    (89, "Al-Fajr", 30),
-    (90, "Al-Balad to An-Nas", 208)
-]
-
-# --- STREAMLIT UI ---
-st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
-
-st.title("📖 Quran Memorization Tracker")
-st.write("Generate a custom daily Excel tracker based on your memorization progress.")
-
-st.markdown("### ⏳ Daily Commitment")
-daily_time = st.text_input("How much time will you dedicate to the Quran daily?", placeholder="e.g., 30 minutes, 1 hour")
-
-st.markdown("### 🗂️ Categorize the Surahs")
-surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
-
-cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options)
-remaining_for_cat2 = [s for s in surah_options if s not in cat1_selections]
-cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=remaining_for_cat2)
-
-# --- EXCEL GENERATION LOGIC ---
-if st.button("Generate My Custom Excel Tracker"):
-    tracker_data = []
-    for s in SURAH_DATA:
-        surah_string = f"{s[0]}. {s[1]}"
-        if surah_string in cat1_selections:
-            category = "1 - Confident"
-        elif surah_string in cat2_selections:
-            category = "2 - Needs Revision"
-        else:
-            category = "3 - Not Memorized"
-           
-        tracker_data.append({
-            "No.": s[0],
-            "Surah": s[1],
-            "Total Verses": s[2],
+    (1, "Al-Fatihah", 7, 1), (2, "Al-Baqarah", 286, 48), (3, "Aal-Imran", 200, 27), (4, "An-Nisa", 176, 29),
+    (5, "Al-Ma'idah", 120, 21), (6, "Al-An'am", 165, 23), (7, "Al-A'raf", 206, 26), (8, "Al-Anfal", 75, 10),
+    (9, "At-Tawbah", 129, 21), (10, "Yunus", 109, 13), (11, "Hud", 123, 13), (12, "Yusuf", 111, 13),
+    (13, "Ar-Ra'd", 43, 6), (14, "Ibrahim", 52, 7), (15, "Al-Hijr", 99, 5), (16, "An-Nahl", 128, 15),
+    (17, "Al-Isra", 111, 11), (18, "Al-Kahf", 110, 11), (19, "Maryam", 98, 7), (20, "Taha", 135, 10),
+    (21, "Al-Anbiya", 112, 10), (22, "Al-Hajj", 78, 10), (23, "Al-Mu'minun", 118, 8), (24, "An-Nur", 64, 9),
+    (25, "Al-Furqan", 77, 7), (26, "Ash-Shu'ara", 227, 10), (27, "An-Naml", 93, 9), (28, "Al-Qasas", 88, 11),
+    (29, "Al-Ankabut", 69, 9), (30, "Ar-Rum", 60, 6), (31, "Luqman", 34, 4), (32, "As-Sajdah", 30, 3),
+    (33, "Al-Ahzab", 73, 10), (34, "Saba", 54, 6), (35, "Fatir", 45, 5), (36, "Ya-Sin", 83, 6),
+    (37, "As-Saffat", 182, 7), (38, "Sad", 88, 5), (39, "Az-Zumar", 75, 9), (40, "Ghafir", 85, 9),
+    (41, "Fussilat", 54, 6), (42, "Ash-Shura", 53, 6), (43, "Az-Zukhruf", 89, 7), (44, "Ad-Dukhan", 59, 3),
+    (45, "Al-Jathiyah", 37, 4), (46, "Al-Ahqaf", 35, 5), (47, "Muhammad", 38, 4), (48, "Al-Fath", 29, 5),
+    (49, "Al-Hujurat", 18, 3), (50, "Qaf", 45, 3), (51, "Ad-Zariyat", 60, 3), (52, "At-Tur", 49, 3),
+    (53, "An-Najm", 62, 3), (54, "Al-Qamar", 55, 3), (55, "Ar-Rahman", 78, 3), (56, "Al-Waqi'ah", 96, 3),
+    (57, "Al-Hadid", 29, 4), (58, "Al-Mujadila", 22, 3), (59, "Al-Hashr", 24, 4), (60, "Al-Mumtahanah", 13, 3),
+    (61, "As-Saff", 14, 2), (62, "Al-Jumu'ah", 11, 2), (63, "Al-Munafiqun", 11, 2), (64, "At-Taghabun", 18, 2),
+    (65, "At-Talaq", 12, 2), (66, "At-Tahrim", 12, 2), (67, "Al-Mulk", 30, 2.5), (68, "Al-Qalam", 52, 2),
+    (69, "Al-Haqqah", 52, 2), (70, "Al-Ma'arij", 44, 2), (71, "Nuh", 28, 2), (72, "Al-Jinn", 28, 2),
+    (73, "Al-Muzzammil", 20, 1.5), (74, "Al-Muddaththir", 56, 2), (75, "Al-Qiyamah", 40, 1.5), (76, "Al-Insan", 31, 2),
+    (77, "Al-Mursalat", 50, 1.5), (78, "An-Naba", 40, 1.5), (79, "An-Nazi'at", 46, 1.5), (80, "Abasa", 42, 1.5),
+    (81, "At-Takwir", 29, 1), (82, "Al-Infitar", 19, 1), (83, "Al-Mutaffifin", 36, 1.5), (84, "Al-Inshiqaq", 25, 1),
+    (85, "Al-Buruj", 22, 1), (86, "At-Tariq", 17, 0.5), (87, "Al-A'la", 19, 0.5), (88, "Al-Ghashiyah", 26, 1),
+    (89, "Al-Fajr", 30, 1.5),
+    (90, "Al-Balad to An-Nas", 208, 10)
+            "Total Pages": s[3],
             "Category": category,
             "Last Revised (Date)": "",  
             "Next Revision Due": "",    
@@ -86,11 +54,12 @@ if st.button("Generate My Custom Excel Tracker"):
     worksheet.set_column('A:A', 5)
     worksheet.set_column('B:B', 25)
     worksheet.set_column('C:C', 12)
-    worksheet.set_column('D:D', 20)
-    worksheet.set_column('E:E', 18)
+    worksheet.set_column('D:D', 12)
+    worksheet.set_column('E:E', 20)
     worksheet.set_column('F:F', 18)
-    worksheet.set_column('G:G', 15)
-    worksheet.set_column('H:H', 20)
+    worksheet.set_column('G:G', 18)
+    worksheet.set_column('H:H', 15)
+    worksheet.set_column('I:I', 20)
 
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
     worksheet.write('A2', "Rule: Category 1 Surahs must be revised every 14 days. Prioritize Category 2 before starting Category 3.")
@@ -104,46 +73,46 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write(excel_row, 0, df.iloc[row_num]['No.'], border_format)
         worksheet.write(excel_row, 1, df.iloc[row_num]['Surah'], border_format)
         worksheet.write(excel_row, 2, df.iloc[row_num]['Total Verses'], border_format)
-        worksheet.write(excel_row, 3, df.iloc[row_num]['Category'], border_format)
+        worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
+        worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
         range_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1})=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}))'
-        worksheet.write_formula(excel_row, 4, range_formula, formula_gray_format)
+        worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
        
-        # Next Revision Due (Now calculates +14 days for BOTH Cat 1 and Cat 2)
-        f_formula = f'=IF(OR(D{excel_row+1}="1 - Confident", D{excel_row+1}="2 - Needs Revision"), IF(E{excel_row+1}="", "", E{excel_row+1}+14), "")'
-        worksheet.write_formula(excel_row, 5, f_formula, formula_gray_format)
+        f_formula = f'=IF(OR(E{excel_row+1}="1 - Confident", E{excel_row+1}="2 - Needs Revision"), IF(F{excel_row+1}="", "", F{excel_row+1}+14), "")'
+        worksheet.write_formula(excel_row, 6, f_formula, formula_gray_format)
        
-        # Status (Now evaluates Good/Overdue for BOTH Cat 1 and Cat 2)
-        g_formula = f'=IF(D{excel_row+1}="3 - Not Memorized", "⚪ Not Started", IF(E{excel_row+1}="", "Pending", IF(TODAY()>F{excel_row+1}, "🔴 Overdue", "🟢 Good")))'
-        worksheet.write_formula(excel_row, 6, g_formula, border_format)
+        g_formula = f'=IF(E{excel_row+1}="3 - Not Memorized", "⚪ Not Started", IF(F{excel_row+1}="", "Pending", IF(TODAY()>G{excel_row+1}, "🔴 Overdue", "🟢 Good")))'
+        worksheet.write_formula(excel_row, 7, g_formula, border_format)
        
-        worksheet.write_blank(excel_row, 7, None, border_format)
+        worksheet.write_blank(excel_row, 8, None, border_format)
 
     for row in range(5, len(df) + 5):
-        worksheet.data_validation(row, 3, row, 3, {
+        worksheet.data_validation(row, 4, row, 4, {
             'validate': 'list',
             'source': ['1 - Confident', '2 - Needs Revision', '3 - Not Memorized']
         })
 
+    # Updated Pie Chart math to sum the Pages (Col D) based on Category (Col E)
     last_row = len(df) + 5
-    worksheet.write('J4', 'Category', header_format)
-    worksheet.write('K4', 'Count', header_format)
-    worksheet.write('J5', '1 - Confident')
-    worksheet.write_formula('K5', f'=COUNTIF($D$6:$D${last_row}, "1 - Confident")')
-    worksheet.write('J6', '2 - Needs Revision')
-    worksheet.write_formula('K6', f'=COUNTIF($D$6:$D${last_row}, "2 - Needs Revision")')
-    worksheet.write('J7', '3 - Not Memorized')
-    worksheet.write_formula('K7', f'=COUNTIF($D$6:$D${last_row}, "3 - Not Memorized")')
+    worksheet.write('L4', 'Category', header_format)
+    worksheet.write('M4', 'Total Pages', header_format)
+    worksheet.write('L5', '1 - Confident')
+    worksheet.write_formula('M5', f'=SUMIF($E$6:$E${last_row}, "1 - Confident", $D$6:$D${last_row})')
+    worksheet.write('L6', '2 - Needs Revision')
+    worksheet.write_formula('M6', f'=SUMIF($E$6:$E${last_row}, "2 - Needs Revision", $D$6:$D${last_row})')
+    worksheet.write('L7', '3 - Not Memorized')
+    worksheet.write_formula('M7', f'=SUMIF($E$6:$E${last_row}, "3 - Not Memorized", $D$6:$D${last_row})')
 
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({
         'name': 'Memorization Progress',
-        'categories': "='Surah Dashboard'!$J$5:$J$7",
-        'values': "='Surah Dashboard'!$K$5:$K$7",
+        'categories': "='Surah Dashboard'!$L$5:$L$7",
+        'values': "='Surah Dashboard'!$M$5:$M$7",
         'points': [{'fill': {'color': '#92D050'}}, {'fill': {'color': '#FFC000'}}, {'fill': {'color': '#D9D9D9'}}],
     })
-    chart.set_title({'name': 'Memorization Progress Overview'})
-    worksheet.insert_chart('J9', chart, {'x_scale': 1.2, 'y_scale': 1.2})
+    chart.set_title({'name': 'Memorization by Page Count'})
+    worksheet.insert_chart('L9', chart, {'x_scale': 1.2, 'y_scale': 1.2})
 
     # --- SHEET 2: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily Log')
@@ -162,23 +131,17 @@ if st.button("Generate My Custom Excel Tracker"):
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
     log_sheet.set_column('H:I', None, None, {'hidden': True})
    
-    # --- BULLETPROOF GOOGLE SHEETS DROPDOWN METHOD ---
-    # We write a simple IF statement for every single Surah.
-    # Google Sheets dropdowns automatically ignore the blank cells!
-    # --- BULLETPROOF GOOGLE SHEETS DROPDOWN METHOD ---
     for i in range(90):
         dash_row = i + 6
-        log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!D{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!A{dash_row} & ". " & \'Surah Dashboard\'!B{dash_row}, "")')
+        log_sheet.write_formula(f'Z{i+1}', f'=IF(\'Surah Dashboard\'!E{dash_row}<>"3 - Not Memorized", \'Surah Dashboard\'!A{dash_row} & ". " & \'Surah Dashboard\'!B{dash_row}, "")')
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
     for row in range(1, 1001):
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
        
-        # The dropdown source now looks at a large block in Z, but Excel's 'ignore_blank' feature keeps it tidy
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$Z$1:$Z$90', 'ignore_blank': True})
         log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': '=$Z$1:$Z$90', 'ignore_blank': True})
-       
         log_sheet.data_validation(row, 4, row, 4, {'validate': 'list', 'source': ['Yes', 'No']})
         log_sheet.data_validation(row, 6, row, 6, {'validate': 'list', 'source': ['Revision', 'New Memorization']})
        
