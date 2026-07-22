@@ -162,7 +162,7 @@ if st.button("Generate My Custom Excel Tracker"):
    
     # --- NEW: LIVE EXCEL FORMULA FOR DROPDOWN ---
     # This formula filters the Dashboard list and ignores anything marked "3 - Not Memorized"
-    log_sheet.write_formula('Z1', '=IFERROR(FILTER(\'Surah Dashboard\'!B6:B95, \'Surah Dashboard\'!D6:D95<>"3 - Not Memorized"), "No Active Surahs")')
+    log_sheet.write_dynamic_array_formula('Z1:Z90', '=IFERROR(FILTER(\'Surah Dashboard\'!B6:B95, \'Surah Dashboard\'!D6:D95<>"3 - Not Memorized"), "No Active Surahs")')
    
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
