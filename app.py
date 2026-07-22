@@ -69,8 +69,6 @@ with col1:
 with col2:
     st.button("⚡ Quick Add: Juz 29 to Category 1", on_click=add_juz_29)
 
-# --- THE DROPDOWN FIX ---
-# By not actively restricting the options, the menu stays open while you click!
 cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options, key='cat1')
 
 col3, col4 = st.columns(2)
@@ -86,7 +84,6 @@ if st.button("Generate My Custom Excel Tracker"):
     tracker_data = []
     for s in SURAH_DATA:
         surah_string = f"{s[0]}. {s[1]}"
-        # If accidentally in both, Cat 1 takes priority
         if surah_string in cat1_selections:
             category = "1 - Confident"
         elif surah_string in cat2_selections:
@@ -141,10 +138,10 @@ if st.button("Generate My Custom Excel Tracker"):
    
     worksheet.write_formula('A3', '="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E95, "1 - Confident", D6:D95)/604, "0.0%") & " (" & SUMIF(E6:E95, "1 - Confident", D6:D95) & " / 604 pages)"', progress_format)
    
-    # --- THE HYPERLINK FIX ---
-    # Calculates the row mathematically by checking how many days have passed since the file was generated!
+    # --- THE FIXED HYPERLINK ---
+    # Now targets #Daily_Log without quotes or spaces, eliminating URL encoding issues!
     start_date = date.today()
-    hyperlink_formula = f'=HYPERLINK("#\'Daily Log\'!A" & (TODAY() - DATE({start_date.year}, {start_date.month}, {start_date.day}) + 2), "📅 CLICK HERE TO JUMP TO TODAY\'S LOG ENTRY")'
+    hyperlink_formula = f'=HYPERLINK("#Daily_Log!A" & (TODAY() - DATE({start_date.year}, {start_date.month}, {start_date.day}) + 2), "📅 CLICK HERE TO JUMP TO TODAY\'S LOG ENTRY")'
     worksheet.write_formula('A4', hyperlink_formula, link_format)
    
     headers = list(df.columns)
@@ -159,7 +156,8 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
         worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
-        range_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}, \'Daily Log\'!$E$2:$E$1001, "Yes")=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}, \'Daily Log\'!$E$2:$E$1001, "Yes"))'
+        # Formulas updated to match the new 'Daily_Log' sheet name
+        range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$A{excel_row+1}, Daily_Log!$I$2:$I$1001, ">="&$A{excel_row+1}, Daily_Log!$E$2:$E$1001, "Yes")=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$A{excel_row+1}, Daily_Log!$I$2:$I$1001, ">="&$A{excel_row+1}, Daily_Log!$E$2:$E$1001, "Yes"))'
         worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
        
         f_formula = f'=IF(OR(E{excel_row+1}="1 - Confident", E{excel_row+1}="2 - Needs Revision"), IF(F{excel_row+1}="", "", F{excel_row+1}+14), "")'
@@ -200,7 +198,7 @@ if st.button("Generate My Custom Excel Tracker"):
     worksheet.insert_chart('L9', chart, {'x_scale': 1.2, 'y_scale': 1.2})
 
     # --- SHEET 2: DAILY LOG ---
-    log_sheet = workbook.add_worksheet('Daily Log')
+    log_sheet = workbook.add_worksheet('Daily_Log') # Re-named without a space
     log_sheet.freeze_panes(1, 0)
    
     log_sheet.set_column('A:A', 15, date_format)
