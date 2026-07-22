@@ -32,65 +32,15 @@ SURAH_DATA = [
     (90, "Al-Balad to An-Nas", 208, 10)
 ]
 
-# Actual start pages in the Madinah Mushaf for Surahs >= 15 pages
 MADINAH_START_PAGES = {
     2: 2, 3: 50, 4: 77, 5: 106, 6: 128, 7: 151, 9: 187, 16: 267
 }
-
-# --- DYNAMIC SURAH SPLITTER (>= 15 Pages, Using Absolute Page Numbers) ---
-EXPANDED_SURAH_DATA = []
-for s in SURAH_DATA:
-    if s[3] >= 15:
-        total_verses = s[2]
-        total_pages = int(s[3])
-        parts = total_pages // 5
-        remainder = total_pages % 5
-       
-        verses_accumulated = 0
-        current_page = MADINAH_START_PAGES.get(s[0], 1)
-       
-        for p in range(parts):
-            end_page = current_page + 4
-            if p == parts - 1 and remainder == 0:
-                verse_est = total_verses - verses_accumulated
-            else:
-                verse_est = int(round(total_verses * (5 / total_pages)))
-           
-            verses_accumulated += verse_est
-            EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} (Pages {current_page}-{end_page})", verse_est, 5))
-            current_page += 5
-           
-        if remainder > 0:
-            verse_est = total_verses - verses_accumulated
-            end_page = current_page + remainder - 1
-            page_label = f"Page {current_page}" if current_page == end_page else f"Pages {current_page}-{end_page}"
-            EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} ({page_label})", verse_est, remainder))
-    else:
-        EXPANDED_SURAH_DATA.append(s)
-
-surah_options = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA]
 
 # --- STREAMLIT UI & SESSION STATE ---
 st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
 
 if 'cat1' not in st.session_state: st.session_state['cat1'] = []
 if 'cat2' not in st.session_state: st.session_state['cat2'] = []
-
-def add_juz_30():
-    juz_30 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if s[0] >= 78]
-    st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_30))
-
-def add_juz_29():
-    juz_29 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if 67 <= s[0] <= 77]
-    st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_29))
-
-def add_juz_30_cat2():
-    juz_30 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if s[0] >= 78]
-    st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_30))
-
-def add_juz_29_cat2():
-    juz_29 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if 67 <= s[0] <= 77]
-    st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_29))
 
 col_title, col_btn = st.columns([4, 1])
 with col_title:
@@ -104,17 +54,71 @@ with col_btn:
 
 st.write("Generate a custom daily Excel tracker based on your memorization progress.")
 
-st.markdown("### ⏳ Daily Commitment")
-daily_time = st.text_input("How much time will you dedicate to the Quran daily?", placeholder="e.g., 30 minutes, 1 hour")
+col_time, col_chunk = st.columns(2)
+with col_time:
+    st.markdown("### ⏳ Daily Commitment")
+    daily_time = st.text_input("How much time will you dedicate to the Quran daily?", placeholder="e.g., 30 minutes, 1 hour")
+with col_chunk:
+    st.markdown("### ⚙️ Tracking Granularity")
+    chunk_size = st.slider(
+        "Split long Surahs (≥ 15 pages) into chunks of how many pages?",
+        min_value=1, max_value=15, value=5,
+        help="Set to 1 if you want to track perfectly page-by-page. Set to 5 for a shorter dashboard."
+    )
 
-st.markdown("### 🗂️ Categorize the Surahs (Long Surahs split into 5-page parts!)")
+# --- DYNAMIC SURAH SPLITTER (Using Slider Value) ---
+EXPANDED_SURAH_DATA = []
+for s in SURAH_DATA:
+    if s[3] >= 15:
+        total_verses = s[2]
+        total_pages = int(s[3])
+        parts = total_pages // chunk_size
+        remainder = total_pages % chunk_size
+       
+        verses_accumulated = 0
+        current_page = MADINAH_START_PAGES.get(s[0], 1)
+       
+        for p in range(parts):
+            end_page = current_page + chunk_size - 1
+            if p == parts - 1 and remainder == 0:
+                verse_est = total_verses - verses_accumulated
+            else:
+                verse_est = int(round(total_verses * (chunk_size / total_pages)))
+           
+            verses_accumulated += verse_est
+            page_label = f"Page {current_page}" if current_page == end_page else f"Pages {current_page}-{end_page}"
+            EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} ({page_label})", verse_est, chunk_size))
+            current_page += chunk_size
+           
+        if remainder > 0:
+            verse_est = total_verses - verses_accumulated
+            end_page = current_page + remainder - 1
+            page_label = f"Page {current_page}" if current_page == end_page else f"Pages {current_page}-{end_page}"
+            EXPANDED_SURAH_DATA.append((s[0], f"{s[1]} ({page_label})", verse_est, remainder))
+    else:
+        EXPANDED_SURAH_DATA.append(s)
 
+surah_options = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA]
+
+def add_juz_30():
+    juz_30 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if s[0] >= 78]
+    st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_30))
+def add_juz_29():
+    juz_29 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if 67 <= s[0] <= 77]
+    st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_29))
+def add_juz_30_cat2():
+    juz_30 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if s[0] >= 78]
+    st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_30))
+def add_juz_29_cat2():
+    juz_29 = [f"{s[0]}. {s[1]}" for s in EXPANDED_SURAH_DATA if 67 <= s[0] <= 77]
+    st.session_state['cat2'] = list(set(st.session_state['cat2'] + juz_29))
+
+st.markdown("### 🗂️ Categorize the Surahs")
 col1, col2 = st.columns(2)
 with col1:
     st.button("⚡ Quick Add: Juz 30 to Category 1", on_click=add_juz_30)
 with col2:
     st.button("⚡ Quick Add: Juz 29 to Category 1", on_click=add_juz_29)
-
 cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options, key='cat1')
 
 col3, col4 = st.columns(2)
@@ -122,8 +126,8 @@ with col3:
     st.button("⚡ Quick Add: Juz 30 to Category 2", on_click=add_juz_30_cat2)
 with col4:
     st.button("⚡ Quick Add: Juz 29 to Category 2", on_click=add_juz_29_cat2)
-
 cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=surah_options, key='cat2')
+
 
 # --- EXCEL GENERATION LOGIC ---
 if st.button("Generate My Custom Excel Tracker", type="primary"):
@@ -186,7 +190,6 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
     worksheet.write('A2', "Rule: Category 1 & 2 Surahs must be revised every 14 days.")
     worksheet.write_formula('A3', f'="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E{last_dash_row}, "1 - Confident", D6:D{last_dash_row})/604, "0.0%") & " (" & SUMIF(E6:E{last_dash_row}, "1 - Confident", D6:D{last_dash_row}) & " / 604 pages)"', progress_format)
-   
     worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C1001) & " Days"', fire_format)
    
     headers = list(df.columns)
@@ -201,8 +204,6 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
         worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
-        # --- NEW MATH ENGINE ---
-        # Checks Columns E and F in Daily Log, no longer requires the "Yes" string to trigger
         item_index = row_num + 1
         range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$E$2:$E$1001, "<={item_index}", Daily_Log!$F$2:$F$1001, ">={item_index}")=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$E$2:$E$1001, "<={item_index}", Daily_Log!$F$2:$F$1001, ">={item_index}"))'
         worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
@@ -253,16 +254,17 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     log_sheet.set_column('B:B', 15)
     log_sheet.set_column('C:C', 35)
     log_sheet.set_column('D:D', 35)
+    log_sheet.set_column('E:E', 30) # Space for notes
    
-    # Reduced header payload
-    log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)']
+    # Updated headers to include Notes
+    log_headers = ['Date', 'Day', 'Start Section', 'End Section (Optional)', 'Notes / Exact Verses (Optional)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
        
     start_date = date.today()
    
-    # Hide the ID Math Columns (Now E and F) and Dropdown Column (Z)
-    log_sheet.set_column('E:F', None, None, {'hidden': True})
+    # Hide the ID Math Columns (Now F and G) and Dropdown Column (Z)
+    log_sheet.set_column('F:G', None, None, {'hidden': True})
     log_sheet.set_column('Z:Z', None, None, {'hidden': True})
    
     for i in range(total_items):
@@ -280,9 +282,9 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$Z$1:$Z${total_items}', 'ignore_blank': True})
         log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$Z$1:$Z${total_items}', 'ignore_blank': True})
        
-        # Internal Math moved to Columns E and F (Indexes 4 and 5)
-        log_sheet.write_formula(row, 4, f'=IFERROR(MATCH(C{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0), 0)')
-        log_sheet.write_formula(row, 5, f'=IFERROR(IF(D{row+1}="", E{row+1}, MATCH(D{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)), 0)')
+        # Internal Math moved to Columns F and G (Indexes 5 and 6)
+        log_sheet.write_formula(row, 5, f'=IFERROR(MATCH(C{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0), 0)')
+        log_sheet.write_formula(row, 6, f'=IFERROR(IF(D{row+1}="", F{row+1}, MATCH(D{row+1}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)), 0)')
        
     workbook.close()
    
