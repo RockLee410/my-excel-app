@@ -31,9 +31,22 @@ SURAH_DATA = [
     (89, "Al-Fajr", 30, 1.5),
     (90, "Al-Balad to An-Nas", 208, 10)
 ]
+surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
 
-# --- STREAMLIT UI ---
+# --- STREAMLIT UI & SESSION STATE ---
 st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
+
+# Initialize Session State so selections aren't lost on refresh
+if 'cat1' not in st.session_state: st.session_state['cat1'] = []
+if 'cat2' not in st.session_state: st.session_state['cat2'] = []
+
+def add_juz_30():
+    juz_30 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]
+    st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_30))
+
+def add_juz_29():
+    juz_29 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]
+    st.session_state['cat1'] = list(set(st.session_state['cat1'] + juz_29))
 
 st.title("📖 Quran Memorization Tracker")
 st.write("Generate a custom daily Excel tracker based on your memorization progress.")
@@ -42,11 +55,20 @@ st.markdown("### ⏳ Daily Commitment")
 daily_time = st.text_input("How much time will you dedicate to the Quran daily?", placeholder="e.g., 30 minutes, 1 hour")
 
 st.markdown("### 🗂️ Categorize the Surahs")
-surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
 
-cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options)
+col1, col2 = st.columns(2)
+with col1:
+    st.button("⚡ Quick Add: Juz 30 to Category 1", on_click=add_juz_30)
+with col2:
+    st.button("⚡ Quick Add: Juz 29 to Category 1", on_click=add_juz_29)
+
+cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options, key='cat1')
 remaining_for_cat2 = [s for s in surah_options if s not in cat1_selections]
-cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=remaining_for_cat2)
+# Ensure cat2 only contains valid remaining options
+valid_cat2 = [s for s in st.session_state['cat2'] if s in remaining_for_cat2]
+cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=remaining_for_cat2, default=valid_cat2)
+# Save valid cat2 back to state
+st.session_state['cat2'] = cat2_selections
 
 # --- EXCEL GENERATION LOGIC ---
 if st.button("Generate My Custom Excel Tracker"):
@@ -77,14 +99,23 @@ if st.button("Generate My Custom Excel Tracker"):
     output = BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
    
+    # FORMATTING STYLES
     header_format = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
     bold_format = workbook.add_format({'bold': True})
+    progress_format = workbook.add_format({'bold': True, 'font_color': '#006100', 'font_size': 14})
+    link_format = workbook.add_format({'bold': True, 'font_color': 'blue', 'underline': True})
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd', 'border': 1})
     border_format = workbook.add_format({'border': 1})
     formula_gray_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'num_format': 'yyyy-mm-dd'})
    
+    # CONDITIONAL FORMATTING COLORS
+    red_bg = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+    green_bg = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
+   
     # --- SHEET 1: SURAH DASHBOARD & VISUALS ---
     worksheet = workbook.add_worksheet('Surah Dashboard')
+    worksheet.freeze_panes(5, 2) # Freezes top 5 rows, and columns A & B (No. & Surah)
+   
     worksheet.set_column('A:A', 5)
     worksheet.set_column('B:B', 25)
     worksheet.set_column('C:C', 12)
@@ -98,6 +129,12 @@ if st.button("Generate My Custom Excel Tracker"):
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
     worksheet.write('A2', "Rule: Category 1 Surahs must be revised every 14 days. Prioritize Category 2 before starting Category 3.")
    
+    # Live Total Progress Metric
+    worksheet.write_formula('A3', '="🏆 Total Quran Memorized: " & TEXT(SUMIF(E6:E95, "1 - Confident", D6:D95)/604, "0.0%") & " (" & SUMIF(E6:E95, "1 - Confident", D6:D95) & " / 604 pages)"', progress_format)
+   
+    # Jump to Today Hyperlink
+    worksheet.write_formula('A4', '=HYPERLINK("#\'Daily Log\'!A" & MATCH(TODAY(), \'Daily Log\'!A:A, 0), "📅 CLICK HERE TO JUMP TO TODAY\'S LOG ENTRY")', link_format)
+   
     headers = list(df.columns)
     for col_num, data in enumerate(headers):
         worksheet.write(4, col_num, data, header_format)
@@ -110,7 +147,6 @@ if st.button("Generate My Custom Excel Tracker"):
         worksheet.write(excel_row, 3, df.iloc[row_num]['Total Pages'], border_format)
         worksheet.write(excel_row, 4, df.iloc[row_num]['Category'], border_format)
        
-        # --- NEW: MAXIFS now strictly requires Column E ("Completed Surah Today?") to be "Yes" ---
         range_formula = f'=IF(MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}, \'Daily Log\'!$E$2:$E$1001, "Yes")=0, "", MAXIFS(\'Daily Log\'!$A$2:$A$1001, \'Daily Log\'!$H$2:$H$1001, "<="&$A{excel_row+1}, \'Daily Log\'!$I$2:$I$1001, ">="&$A{excel_row+1}, \'Daily Log\'!$E$2:$E$1001, "Yes"))'
         worksheet.write_formula(excel_row, 5, range_formula, formula_gray_format)
        
@@ -127,6 +163,10 @@ if st.button("Generate My Custom Excel Tracker"):
             'validate': 'list',
             'source': ['1 - Confident', '2 - Needs Revision', '3 - Not Memorized']
         })
+       
+    # APPLY CONDITIONAL FORMATTING
+    worksheet.conditional_format('H6:H95', {'type': 'cell', 'criteria': '==', 'value': '"🔴 Overdue"', 'format': red_bg})
+    worksheet.conditional_format('H6:H95', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
 
     last_row = len(df) + 5
     worksheet.write('L4', 'Category', header_format)
@@ -150,6 +190,8 @@ if st.button("Generate My Custom Excel Tracker"):
 
     # --- SHEET 2: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily Log')
+    log_sheet.freeze_panes(1, 0) # Freezes top header row
+   
     log_sheet.set_column('A:A', 15, date_format)
     log_sheet.set_column('B:B', 15)
     log_sheet.set_column('C:C', 25)
@@ -158,7 +200,6 @@ if st.button("Generate My Custom Excel Tracker"):
     log_sheet.set_column('F:F', 25)
     log_sheet.set_column('G:G', 25)
    
-    # --- NEW: Header changed to clarify when the Dashboard date resets ---
     log_headers = ['Date', 'Day', 'Start Surah', 'End Surah (Optional)', 'Completed Surah Today?', 'Specific Verses (If No)', 'Type (Revision/New)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
