@@ -149,17 +149,38 @@ if st.button("Generate My Custom Excel Tracker"):
        
         worksheet.write_blank(excel_row, 7, None, border_format)
 
+    
     # Sheet 2: Daily Log (Blank structured sheet for raw daily inputs)
     log_sheet = workbook.add_worksheet('Daily Log')
     log_sheet.set_column('A:A', 15)
-    log_sheet.set_column('B:B', 20)
+    log_sheet.set_column('B:B', 25)
     log_sheet.set_column('C:C', 15)
     log_sheet.set_column('D:D', 15)
-    log_sheet.set_column('E:E', 30)
+    log_sheet.set_column('E:E', 25)
    
     log_headers = ['Date', 'Surah', 'From Verse', 'To Verse', 'Type (Revision/New)']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
+       
+    # --- NEW: ANTI-TEDIOUS DROPDOWNS ---
+    # 1. Write the 114 Surahs to a hidden column (Z) so Excel can use it for the dropdown
+    surah_names = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
+    log_sheet.set_column('Z:Z', None, None, {'hidden': True})
+    log_sheet.write_column('Z1', surah_names)
+   
+    # 2. Add dropdown menus to the first 1000 rows of the Daily Log
+    for row in range(1, 1001):
+        # Dropdown for Surah selection (Column B)
+        log_sheet.data_validation(row, 1, row, 1, {
+            'validate': 'list',
+            'source': '=$Z$1:$Z$114'
+        })
+       
+        # Dropdown for Type selection (Column E)
+        log_sheet.data_validation(row, 4, row, 4, {
+            'validate': 'list',
+            'source': ['Revision', 'New Memorization']
+        })
        
     workbook.close()
    
