@@ -283,9 +283,10 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
 
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({'categories': "='Surah Dashboard'!$L$2:$L$4", 'values': "='Surah Dashboard'!$M$2:$M$4", 'points': [{'fill': {'color': '#92D050'}}, {'fill': {'color': '#FFC000'}}, {'fill': {'color': '#D9D9D9'}}]})
+    chart.set_size({'width': 480, 'height': 300})
     
-    # FIX: Anchored the chart to O1 (a frozen row that never hides) and set object_position: 3 so it ignores row heights
-    worksheet.insert_chart('O1', chart, {'x_scale': 1.2, 'y_scale': 1.2, 'object_position': 3})
+    # Keep the chart size and position independent of hidden dashboard rows.
+    worksheet.insert_chart('O1', chart, {'object_position': 3})
 
     # --- SHEET 2: TODAY'S ACTION PLAN ---
     action_sheet = workbook.add_worksheet("Today's Action Plan")
