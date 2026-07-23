@@ -245,10 +245,11 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
 
     # --- SHEET 2: TODAY'S ACTION PLAN (THE PRIORITY TAB) ---
     action_sheet = workbook.add_worksheet("Today's Action Plan")
+    action_sheet.hide_gridlines(2) # Turns off the default Excel gridlines for a clean dashboard look
+    
     action_sheet.set_column('A:B', 22)
     action_sheet.set_column('C:C', 10)
     action_sheet.set_column('D:D', 20)
-    # The Date formatting fixes columns E and F so they display properly in GSheets
     action_sheet.set_column('E:F', 18, date_format) 
     action_sheet.set_column('G:G', 15)
     
@@ -264,7 +265,6 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     action_sheet.write('A5', "⚠️ GOOGLE SHEETS FIX: Double-click cell A6 below, delete the empty space at the very start, and hit Enter!", fire_format)
     
     # We output the formula as TEXT (by placing a space before the =). 
-    # This completely blinds the Google Sheets importer from mangling it.
     action_sheet.write_string('A6', ' =IFERROR(FILTER(\'Surah Dashboard\'!B6:H, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H)))), "All caught up! 🎉")')
 
     # --- SHEET 3: DAILY LOG ---
