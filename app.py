@@ -147,7 +147,11 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     bold_format = workbook.add_format({'bold': True})
     progress_format = workbook.add_format({'bold': True, 'font_color': '#006100', 'font_size': 14})
     fire_format = workbook.add_format({'bold': True, 'font_color': '#D9534F', 'font_size': 14})
+    
+    # We now have TWO date formats: one for the log (with borders) and one for the dashboard (borderless)
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd', 'border': 1})
+    action_date_format = workbook.add_format({'num_format': 'yyyy-mm-dd'})
+    
     border_format = workbook.add_format({'border': 1})
     formula_gray = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'num_format': 'yyyy-mm-dd'})
     merge_center = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
@@ -250,7 +254,8 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     action_sheet.set_column('A:B', 22)
     action_sheet.set_column('C:C', 10)
     action_sheet.set_column('D:D', 20)
-    action_sheet.set_column('E:F', 18, date_format) 
+    # Applying the borderless date format to columns E and F
+    action_sheet.set_column('E:F', 18, action_date_format) 
     action_sheet.set_column('G:G', 15)
     
     action_sheet.write('A1', "🚀 High Priority Revision Goals", progress_format)
