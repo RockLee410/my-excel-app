@@ -198,11 +198,6 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     # --- SHEET 1: SURAH DASHBOARD ---
     worksheet = workbook.add_worksheet('Surah Dashboard')
     worksheet.freeze_panes(5, 0) 
-    worksheet.set_row(0, 24)
-    worksheet.set_row(1, 24)
-    worksheet.set_row(2, 24)
-    worksheet.set_row(3, 24)
-    worksheet.set_row(4, 24)
     
     worksheet.set_column('A:A', 5)
     worksheet.set_column('B:B', 22)
@@ -288,10 +283,11 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
 
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({'categories': "='Surah Dashboard'!$L$2:$L$4", 'values': "='Surah Dashboard'!$M$2:$M$4", 'points': [{'fill': {'color': '#92D050'}}, {'fill': {'color': '#FFC000'}}, {'fill': {'color': '#D9D9D9'}}]})
-    chart.set_size({'width': 480, 'height': 115})
+    chart.set_size({'width': 480, 'height': 300})
     
-    # Keep the chart size and position independent of hidden dashboard rows.
-    worksheet.insert_chart('O1', chart, {'object_position': 3})
+    # Google Sheets does not reliably render floating charts inside frozen rows.
+    # Place it immediately below the frozen header instead.
+    worksheet.insert_chart('O6', chart, {'object_position': 3})
 
     # --- SHEET 2: TODAY'S ACTION PLAN ---
     action_sheet = workbook.add_worksheet("Today's Action Plan")
