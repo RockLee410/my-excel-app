@@ -1,10 +1,9 @@
 import streamlit as st
-import pandas as pd
 import xlsxwriter
 from io import BytesIO
 from datetime import date, timedelta
 
-# --- DATA: Surah No, Name, Start Page, End Page (Madinah Mushaf) ---
+# --- DATA: Fully Expanded 114 Surahs (Madinah Mushaf) ---
 SURAH_DATA = [
     (1, "Al-Fatihah", 1, 1), (2, "Al-Baqarah", 2, 49), (3, "Aal-Imran", 50, 76), 
     (4, "An-Nisa", 77, 106), (5, "Al-Ma'idah", 106, 127), (6, "Al-An'am", 128, 150), 
@@ -35,7 +34,15 @@ SURAH_DATA = [
     (79, "An-Nazi'at", 583, 584), (80, "Abasa", 585, 585), (81, "At-Takwir", 586, 586), 
     (82, "Al-Infitar", 587, 587), (83, "Al-Mutaffifin", 587, 589), (84, "Al-Inshiqaq", 589, 589), 
     (85, "Al-Buruj", 590, 590), (86, "At-Tariq", 591, 591), (87, "Al-A'la", 591, 592), 
-    (88, "Al-Ghashiyah", 592, 592), (89, "Al-Fajr", 593, 594), (90, "Al-Balad to An-Nas", 594, 604)
+    (88, "Al-Ghashiyah", 592, 592), (89, "Al-Fajr", 593, 594), (90, "Al-Balad", 594, 594), 
+    (91, "Ash-Shams", 595, 595), (92, "Al-Lail", 595, 596), (93, "Ad-Duha", 596, 596), 
+    (94, "Ash-Sharh", 596, 596), (95, "At-Tin", 597, 597), (96, "Al-Alaq", 597, 598), 
+    (97, "Al-Qadr", 598, 598), (98, "Al-Bayyinah", 598, 599), (99, "Az-Zalzalah", 599, 599), 
+    (100, "Al-Adiyat", 599, 600), (101, "Al-Qari'ah", 600, 600), (102, "At-Takathur", 600, 600), 
+    (103, "Al-Asr", 601, 601), (104, "Al-Humazah", 601, 601), (105, "Al-Fil", 601, 601), 
+    (106, "Quraish", 602, 602), (107, "Al-Ma'un", 602, 602), (108, "Al-Kawthar", 602, 602), 
+    (109, "Al-Kafirun", 603, 603), (110, "An-Nasr", 603, 603), (111, "Al-Masad", 603, 603), 
+    (112, "Al-Ikhlas", 604, 604), (113, "Al-Falaq", 604, 604), (114, "An-Nas", 604, 604)
 ]
 
 surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
@@ -50,15 +57,12 @@ if "cat2" not in st.session_state: st.session_state["cat2"] = []
 def add_juz_30():
     juz_30 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]
     st.session_state["cat1"] = list(set(st.session_state["cat1"] + juz_30))
-
 def add_juz_29():
     juz_29 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]
     st.session_state["cat1"] = list(set(st.session_state["cat1"] + juz_29))
-
 def add_juz_30_cat2():
     juz_30 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]
     st.session_state["cat2"] = list(set(st.session_state["cat2"] + juz_30))
-
 def add_juz_29_cat2():
     juz_29 = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]
     st.session_state["cat2"] = list(set(st.session_state["cat2"] + juz_29))
@@ -95,38 +99,10 @@ cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=sura
 
 # --- EXCEL GENERATION LOGIC ---
 if st.button("Generate My Custom Excel Tracker", type="primary"):
-    tracker_data = []
-    
-    # Build out 1 row per physical page for the selected Surahs
-    for s in SURAH_DATA:
-        surah_string = f"{s[0]}. {s[1]}"
-        if surah_string in cat1_selections:
-            category = "1 - Confident"
-        elif surah_string in cat2_selections:
-            category = "2 - Needs Revision"
-        else:
-            category = "3 - Not Memorized"
-            
-        start_p = s[2]
-        end_p = s[3]
-        
-        for p in range(start_p, end_p + 1):
-            tracker_data.append({
-                "No.": s[0],
-                "Surah": s[1],
-                "Page": p,
-                "Category": category,
-                "Last Revised (Date)": "",  
-                "Next Revision Due": "",    
-                "Status": "",               
-                "Notes": ""
-            })
-
-    df = pd.DataFrame(tracker_data)
-
     output = BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     
+    # Formats
     header_format = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
     bold_format = workbook.add_format({'bold': True})
     progress_format = workbook.add_format({'bold': True, 'font_color': '#006100', 'font_size': 14})
@@ -135,10 +111,11 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     border_format = workbook.add_format({'border': 1})
     formula_gray_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'num_format': 'yyyy-mm-dd'})
     
+    merge_format_center = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
+    merge_format_left = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter'})
+    
     red_bg = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
     green_bg = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
-    
-    last_dash_row = len(df) + 5
     
     # --- SHEET 1: SURAH DASHBOARD ---
     worksheet = workbook.add_worksheet('Surah Dashboard')
@@ -155,34 +132,59 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
 
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
     worksheet.write('A2', "Rule: Category 1 & 2 Pages must be revised every 14 days.")
-    
-    # Overall Progress
-    worksheet.write_formula('A3', f'="🏆 Total Pages Memorized: " & TEXT(COUNTIF(D6:D{last_dash_row}, "1 - Confident")/604, "0.0%") & " (" & COUNTIF(D6:D{last_dash_row}, "1 - Confident") & " / 604 pages)"', progress_format)
     worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!A2:A1001) & " Days"', fire_format)
     
-    headers = list(df.columns)
+    headers = ['No.', 'Surah', 'Page', 'Category', 'Last Revised (Date)', 'Next Revision Due', 'Status', 'Notes']
     for col_num, data in enumerate(headers):
         worksheet.write(4, col_num, data, header_format)
 
-    for row_num in range(len(df)):
-        excel_row = row_num + 5
-        worksheet.write(excel_row, 0, df.iloc[row_num]['No.'], border_format)
-        worksheet.write(excel_row, 1, df.iloc[row_num]['Surah'], border_format)
-        worksheet.write(excel_row, 2, df.iloc[row_num]['Page'], border_format)
-        worksheet.write(excel_row, 3, df.iloc[row_num]['Category'], border_format)
+    current_excel_row = 5 # Starts at row 6 in Excel
+    
+    for s in SURAH_DATA:
+        surah_string = f"{s[0]}. {s[1]}"
+        if surah_string in cat1_selections:
+            category = "1 - Confident"
+        elif surah_string in cat2_selections:
+            category = "2 - Needs Revision"
+        else:
+            category = "3 - Not Memorized"
+            
+        pages = list(range(s[2], s[3] + 1))
+        num_pages = len(pages)
+        start_row = current_excel_row
+        end_row = current_excel_row + num_pages - 1
         
-        # --- THE PURE PAGE-BOUNDARY MATH ENGINE ---
-        # It no longer checks the Surah name. It checks if the Dashboard Page Number ($C) falls between the Start Page ($D) and End Page ($Z)
-        range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$D$2:$D$1001, "<="&$C{excel_row+1}, Daily_Log!$Z$2:$Z$1001, ">="&$C{excel_row+1})=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$D$2:$D$1001, "<="&$C{excel_row+1}, Daily_Log!$Z$2:$Z$1001, ">="&$C{excel_row+1}))'
-        worksheet.write_formula(excel_row, 4, range_formula, formula_gray_format) 
+        # Merge Cells for Surahs spanning multiple pages!
+        if num_pages > 1:
+            worksheet.merge_range(start_row, 0, end_row, 0, s[0], merge_format_center)
+            worksheet.merge_range(start_row, 1, end_row, 1, s[1], merge_format_left)
+        else:
+            worksheet.write(start_row, 0, s[0], merge_format_center)
+            worksheet.write(start_row, 1, s[1], merge_format_left)
+            
+        for i, p in enumerate(pages):
+            row = start_row + i
+            worksheet.write(row, 2, p, border_format)
+            worksheet.write(row, 3, category, border_format)
+            
+            # The Math Engine now checks the hidden 'Effective Start Page' (H) and 'Effective End Page' (I) in Daily Log
+            range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$C{row+1}, Daily_Log!$I$2:$I$1001, ">="&$C{row+1})=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$C{row+1}, Daily_Log!$I$2:$I$1001, ">="&$C{row+1}))'
+            worksheet.write_formula(row, 4, range_formula, formula_gray_format) 
+            
+            f_formula = f'=IF(OR(D{row+1}="1 - Confident", D{row+1}="2 - Needs Revision"), IF(E{row+1}="", "", E{row+1}+14), "")'
+            worksheet.write_formula(row, 5, f_formula, formula_gray_format)
+            
+            g_formula = f'=IF(D{row+1}="3 - Not Memorized", "⚪ Not Started", IF(E{row+1}="", "Pending", IF(TODAY()>F{row+1}, "🔴 Overdue", "🟢 Good")))'
+            worksheet.write_formula(row, 6, g_formula, border_format)
+            
+            worksheet.write_blank(row, 7, None, border_format)
+            
+        current_excel_row += num_pages
         
-        f_formula = f'=IF(OR(D{excel_row+1}="1 - Confident", D{excel_row+1}="2 - Needs Revision"), IF(E{excel_row+1}="", "", E{excel_row+1}+14), "")'
-        worksheet.write_formula(excel_row, 5, f_formula, formula_gray_format)
-        
-        g_formula = f'=IF(D{excel_row+1}="3 - Not Memorized", "⚪ Not Started", IF(E{excel_row+1}="", "Pending", IF(TODAY()>F{excel_row+1}, "🔴 Overdue", "🟢 Good")))'
-        worksheet.write_formula(excel_row, 6, g_formula, border_format)
-        
-        worksheet.write_blank(excel_row, 7, None, border_format)
+    last_dash_row = current_excel_row + 4 # Account for header offset
+    
+    # Needs to be written after last_dash_row is calculated
+    worksheet.write_formula('A3', f'="🏆 Total Pages Memorized: " & TEXT(COUNTIF(D6:D{last_dash_row}, "1 - Confident")/604, "0.0%") & " (" & COUNTIF(D6:D{last_dash_row}, "1 - Confident") & " / 604 pages)"', progress_format)
 
     for row in range(5, last_dash_row):
         worksheet.data_validation(row, 3, row, 3, {
@@ -193,7 +195,7 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     worksheet.conditional_format(f'G6:G{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🔴 Overdue"', 'format': red_bg})
     worksheet.conditional_format(f'G6:G{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
 
-    # Chart tracking Category Distribution
+    # Chart tracking
     worksheet.write('J4', 'Category', header_format)
     worksheet.write('K4', 'Total Pages', header_format)
     worksheet.write('J5', '1 - Confident')
@@ -220,22 +222,25 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     log_sheet.set_column('A:A', 15, date_format) 
     log_sheet.set_column('B:B', 15) 
     log_sheet.set_column('C:C', 25) 
-    log_sheet.set_column('D:D', 15) 
-    log_sheet.set_column('E:E', 25)
-    log_sheet.set_column('F:F', 15)
+    log_sheet.set_column('D:D', 20) 
+    log_sheet.set_column('E:F', 20)
     log_sheet.set_column('G:G', 35)
     
-    log_headers = ['Date', 'Day', 'Start Surah', 'Start Page', 'End Surah (Optional)', 'End Page (Optional)', 'Notes / Specific Verses']
+    log_headers = ['Date', 'Day', 'Surah', 'Read Entire Surah?', 'Start Page (If No)', 'End Page (Optional)', 'Notes / Specific Verses']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
         
     start_date = date.today()
     
-    log_sheet.set_column('Z:AA', None, None, {'hidden': True})
+    # Hide the complex math lookups completely from view
+    log_sheet.set_column('H:I', None, None, {'hidden': True})
+    log_sheet.set_column('AA:AC', None, None, {'hidden': True})
     
-    # Populate the fixed Dropdown for Surahs in hidden Col AA
+    # Populate the hidden exact dictionary for the Full Surah feature (Columns AA, AB, AC)
     for i, s in enumerate(SURAH_DATA):
-        log_sheet.write_string(i, 26, s[1]) # Write names to AA1:AA90
+        log_sheet.write_string(i, 26, s[1]) # Name
+        log_sheet.write_number(i, 27, s[2]) # Start Page
+        log_sheet.write_number(i, 28, s[3]) # End Page
         
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
     
@@ -245,12 +250,13 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         log_sheet.write_datetime(row, 0, current_date, date_format)
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
         
-        # Fixed Dropdowns for Start and End Surahs
+        # New Dropdowns
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$AA$1:$AA${total_surahs}', 'ignore_blank': True})
-        log_sheet.data_validation(row, 4, row, 4, {'validate': 'list', 'source': f'=$AA$1:$AA${total_surahs}', 'ignore_blank': True})
+        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': ['Yes', 'No'], 'ignore_blank': True})
         
-        # Hidden Column Z: defaults End Page (F) to Start Page (D) if left blank!
-        log_sheet.write_formula(row, 25, f'=IF(ISBLANK(F{row+1}), D{row+1}, F{row+1})')
+        # The Hidden Brain (Columns H and I): It checks if "Yes" is selected. If so, it instantly VLOOKUPs the real pages!
+        log_sheet.write_formula(row, 7, f'=IFERROR(IF($D{row+1}="Yes", VLOOKUP($C{row+1}, $AA$1:$AC$114, 2, FALSE), $E{row+1}), 0)')
+        log_sheet.write_formula(row, 8, f'=IFERROR(IF($D{row+1}="Yes", VLOOKUP($C{row+1}, $AA$1:$AC$114, 3, FALSE), IF(ISBLANK($F{row+1}), $H{row+1}, $F{row+1})), 0)')
         
     workbook.close()
     
