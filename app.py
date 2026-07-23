@@ -176,7 +176,6 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C10001) & " Days"', fire_format)
     worksheet.write_formula('D4', '="⏱️ Total Time Spent: " & ROUND(SUM(Daily_Log!G2:G10001)/60, 1) & " Hours"', fire_format)
     
-    # Updated Headers
     headers = ['No.', 'Surah', 'Juz', 'Page', 'Category', 'Last Revised (Date)', 'Next Revision Due', 'Status', 'Notes']
     for col_num, data in enumerate(headers):
         worksheet.write(4, col_num, data, header_format)
@@ -230,7 +229,7 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     worksheet.conditional_format(f'H6:H{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🟡 Due Soon"', 'format': yellow_bg})
     worksheet.conditional_format(f'H6:H{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
 
-    # Summary Table shifted to L & M
+    # Summary Table
     worksheet.write('L1', 'Category', header_format)
     worksheet.write('M1', 'Total Pages', header_format)
     worksheet.write('L2', '1 - Confident')
@@ -249,20 +248,24 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     action_sheet.set_column('A:B', 22)
     action_sheet.set_column('C:C', 10)
     action_sheet.set_column('D:D', 20)
-    # Applying the date_format directly to columns E and F to fix the raw serial numbers
+    # The Date formatting fixes columns E and F so they display properly in GSheets
     action_sheet.set_column('E:F', 18, date_format) 
     action_sheet.set_column('G:G', 15)
     
     action_sheet.write('A1', "🚀 High Priority Revision Goals", progress_format)
     action_sheet.write('A2', "This page automatically filters out pages that are 'Good' or 'Not Started'. It only shows what needs attention today!")
     
-    # Adding Headers for the Action Plan Output
+    # The Headers
     action_headers = ['Surah', 'Juz', 'Page', 'Category', 'Last Revised', 'Next Due', 'Status']
     for col_num, data in enumerate(action_headers):
-        action_sheet.write(2, col_num, data, header_format)
+        action_sheet.write(3, col_num, data, header_format)
+        
+    # The 1-Click Activation Hack for Google Sheets
+    action_sheet.write('A5', "⚠️ GOOGLE SHEETS FIX: Double-click cell A6 below, delete the empty space at the very start, and hit Enter!", fire_format)
     
-    # Google Sheets absolute native formula (No _xlws, No closed ranges)
-    action_sheet.write_formula('A4', '=IFERROR(FILTER(\'Surah Dashboard\'!B6:H, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H)))), "All caught up! 🎉")')
+    # We output the formula as TEXT (by placing a space before the =). 
+    # This completely blinds the Google Sheets importer from mangling it.
+    action_sheet.write_string('A6', ' =IFERROR(FILTER(\'Surah Dashboard\'!B6:H, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H)))), "All caught up! 🎉")')
 
     # --- SHEET 3: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily_Log') 
