@@ -95,7 +95,7 @@ if uploaded_file is not None and "file_loaded" not in st.session_state:
     except Exception as e:
         st.error(f"Error parsing file. Please make sure it's the correct format. ({e})")
 
-# 2. WEB VISUALIZATIONS (Only shows if history exists)
+# 2. WEB VISUALIZATIONS
 if st.session_state["history"]:
     st.success(f"✅ Successfully loaded {len(st.session_state['history'])} past log entries!")
     st.markdown("### 📈 Your Memorization Velocity")
@@ -109,7 +109,6 @@ if st.session_state["history"]:
         df_chart['Minutes Spent'] = pd.to_numeric(df_chart['Minutes Spent'], errors='coerce').fillna(0)
         colB.metric("Total Hours Logged", round(df_chart['Minutes Spent'].sum() / 60, 1))
     
-    # Plotting daily activity
     daily_counts = df_chart.groupby(df_chart['Date'].dt.date).size().reset_index(name='Sessions')
     st.line_chart(daily_counts.set_index('Date'))
     st.markdown("---")
@@ -148,7 +147,6 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     progress_format = workbook.add_format({'bold': True, 'font_color': '#006100', 'font_size': 14})
     fire_format = workbook.add_format({'bold': True, 'font_color': '#D9534F', 'font_size': 14})
     
-    # Date formats
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd', 'border': 1})
     action_date_format = workbook.add_format({'num_format': 'yyyy-mm-dd'})
     
@@ -167,9 +165,9 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     
     worksheet.set_column('A:A', 5)
     worksheet.set_column('B:B', 22)
-    worksheet.set_column('C:C', 8)  # Juz
-    worksheet.set_column('D:D', 8)  # Page
-    worksheet.set_column('E:E', 20) # Category
+    worksheet.set_column('C:C', 8)  
+    worksheet.set_column('D:D', 8)  
+    worksheet.set_column('E:E', 20) 
     worksheet.set_column('F:F', 18)
     worksheet.set_column('G:G', 18)
     worksheet.set_column('H:H', 15)
@@ -205,13 +203,12 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
         for i, p in enumerate(pages):
             row = start_row + i
             
-            # HIDE CATEGORY 3 ROWS INITIALLY
             if category == "3 - Not Memorized":
                 worksheet.set_row(row, None, None, {'hidden': True})
                 
-            worksheet.write(row, 2, get_juz(p), merge_center) # Write Juz
-            worksheet.write(row, 3, p, border_format)         # Write Page
-            worksheet.write(row, 4, category, border_format)  # Write Category
+            worksheet.write(row, 2, get_juz(p), merge_center) 
+            worksheet.write(row, 3, p, border_format)         
+            worksheet.write(row, 4, category, border_format)  
             
             range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$I$2:$I$10001, "<="&$D{row+1}, Daily_Log!$J$2:$J$10001, ">="&$D{row+1})=0, "", MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$I$2:$I$10001, "<="&$D{row+1}, Daily_Log!$J$2:$J$10001, ">="&$D{row+1}))'
             worksheet.write_formula(row, 5, range_formula, formula_gray) 
@@ -228,9 +225,7 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
         
     last_dash_row = current_excel_row + 4 
     
-    # ADD AUTOFILTER TO THE DASHBOARD HEADERS (A5 to I[last_row])
     worksheet.autofilter(4, 0, current_excel_row - 1, 8)
-    
     worksheet.write_formula('A3', f'="🏆 Total Pages Memorized: " & TEXT(COUNTIF(E6:E{last_dash_row}, "1 - Confident")/604, "0.0%") & " (" & COUNTIF(E6:E{last_dash_row}, "1 - Confident") & " / 604 pages)"', progress_format)
 
     for row in range(5, last_dash_row):
@@ -252,7 +247,9 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
 
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({'categories': "='Surah Dashboard'!$L$2:$L$4", 'values': "='Surah Dashboard'!$M$2:$M$4", 'points': [{'fill': {'color': '#92D050'}}, {'fill': {'color': '#FFC000'}}, {'fill': {'color': '#D9D9D9'}}]})
-    worksheet.insert_chart('L6', chart, {'x_scale': 1.2, 'y_scale': 1.2})
+    
+    # FIX: Anchored the chart to O1 (a frozen row that never hides) and set object_position: 3 so it ignores row heights
+    worksheet.insert_chart('O1', chart, {'x_scale': 1.2, 'y_scale': 1.2, 'object_position': 3})
 
     # --- SHEET 2: TODAY'S ACTION PLAN ---
     action_sheet = workbook.add_worksheet("Today's Action Plan")
