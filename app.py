@@ -259,7 +259,7 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     action_sheet.write('A2', "This page automatically filters out pages that are 'Good' or 'Not Started'. It only shows what needs attention today!")
     
     # Dynamic Array formula filtering Dashboard Rows where Status is Overdue OR Due Soon
-    action_sheet.write_formula('A4', f'=IFERROR(FILTER(\'Surah Dashboard\'!B6:H{last_dash_row}, (\'Surah Dashboard\'!H6:H{last_dash_row}="🔴 Overdue")+(\'Surah Dashboard\'!H6:H{last_dash_row}="🟡 Due Soon")), "All caught up! 🎉")')
+    action_sheet.write_formula('A4', f'=IFERROR(FILTER(\'Surah Dashboard\'!B6:H{last_dash_row}, ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H{last_dash_row}))), "All caught up! 🎉")')
 
     # --- SHEET 3: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily_Log') 
