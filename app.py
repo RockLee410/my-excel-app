@@ -88,7 +88,7 @@ if uploaded_file is not None and "file_loaded" not in st.session_state:
                 if s[1] in cat2_surahs: c2_list.append(f"{s[0]}. {s[1]}")
             
             st.session_state["cat1"] = c1_list
-            st.session_state["cat2"] = c2_list
+            st.session_state["cat2"] = [surah for surah in c2_list if surah not in c1_list]
             
         st.session_state["file_loaded"] = True
         st.rerun()
@@ -114,10 +114,34 @@ if st.session_state["history"]:
     st.markdown("---")
 
 # --- GENERATOR SETTINGS ---
-def add_juz_30(): st.session_state["cat1"] = list(set(st.session_state["cat1"] + [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]))
-def add_juz_29(): st.session_state["cat1"] = list(set(st.session_state["cat1"] + [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]))
-def add_juz_30_cat2(): st.session_state["cat2"] = list(set(st.session_state["cat2"] + [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]))
-def add_juz_29_cat2(): st.session_state["cat2"] = list(set(st.session_state["cat2"] + [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]))
+def remove_category_overlap(changed_category):
+    other_category = "cat2" if changed_category == "cat1" else "cat1"
+    st.session_state[other_category] = [
+        surah for surah in st.session_state[other_category]
+        if surah not in st.session_state[changed_category]
+    ]
+
+
+def add_to_category(category, surahs):
+    existing = st.session_state[category]
+    st.session_state[category] = existing + [surah for surah in surahs if surah not in existing]
+    remove_category_overlap(category)
+
+
+def add_juz_30():
+    add_to_category("cat1", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78])
+
+
+def add_juz_29():
+    add_to_category("cat1", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
+
+
+def add_juz_30_cat2():
+    add_to_category("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78])
+
+
+def add_juz_29_cat2():
+    add_to_category("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
 
 st.write("Generate your updated Excel tracker below.")
 st.markdown("### 🗂️ Manage Categorized Surahs")
@@ -127,14 +151,26 @@ with col1:
     st.button("⚡ Quick Add: Juz 30 to Category 1", on_click=add_juz_30)
 with col2:
     st.button("⚡ Quick Add: Juz 29 to Category 1", on_click=add_juz_29)
-cat1_selections = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options, key="cat1")
+cat1_selections = st.multiselect(
+    "🟢 Category 1: Memorized with Confidence",
+    options=surah_options,
+    key="cat1",
+    on_change=remove_category_overlap,
+    args=("cat1",),
+)
 
 col3, col4 = st.columns(2)
 with col3:
     st.button("⚡ Quick Add: Juz 30 to Category 2", on_click=add_juz_30_cat2)
 with col4:
     st.button("⚡ Quick Add: Juz 29 to Category 2", on_click=add_juz_29_cat2)
-cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=surah_options, key="cat2")
+cat2_selections = st.multiselect(
+    "🟡 Category 2: Needs Revision",
+    options=surah_options,
+    key="cat2",
+    on_change=remove_category_overlap,
+    args=("cat2",),
+)
 
 # --- EXCEL GENERATION LOGIC ---
 if st.button("Generate Downloadable Excel Tracker", type="primary"):
