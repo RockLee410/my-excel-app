@@ -46,7 +46,6 @@ SURAH_DATA = [
 ]
 
 surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
-total_surahs = len(SURAH_DATA)
 
 # --- STREAMLIT UI & SESSION STATE ---
 st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
@@ -233,8 +232,15 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     log_sheet.set_column('H:I', None, None, {'hidden': True})
     log_sheet.set_column('AA:AC', None, None, {'hidden': True})
     
-    # Populate the hidden exact dictionary for the Cascading Fallback feature
-    for i, s in enumerate(SURAH_DATA):
+    # Filter Active Surahs for the Dropdown (Cat 1 and Cat 2)
+    active_surahs = [s for s in SURAH_DATA if f"{s[0]}. {s[1]}" in cat1_selections or f"{s[0]}. {s[1]}" in cat2_selections]
+    if not active_surahs: 
+        active_surahs = SURAH_DATA # Fallback if nothing was selected
+        
+    num_active_surahs = len(active_surahs)
+    
+    # Populate the hidden exact dictionary for the Cascading Fallback feature based ONLY on active surahs
+    for i, s in enumerate(active_surahs):
         log_sheet.write_string(i, 26, s[1]) # Name
         log_sheet.write_number(i, 27, s[2]) # Start Page
         log_sheet.write_number(i, 28, s[3]) # End Page
@@ -247,17 +253,15 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         log_sheet.write_datetime(row, 0, current_date, date_format)
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
         
-        # Surah Dropdowns
-        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$AA$1:$AA${total_surahs}', 'ignore_blank': True})
-        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$AA$1:$AA${total_surahs}', 'ignore_blank': True})
+        # Filtered Surah Dropdowns
+        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$AA$1:$AA${num_active_surahs}', 'ignore_blank': True})
+        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$AA$1:$AA${num_active_surahs}', 'ignore_blank': True})
         
         # --- THE CASCADING FALLBACK ENGINE (Columns H and I) ---
-        # Effective Start Page: If 'From Page' is blank, lookup 'From Surah' start page. Otherwise use 'From Page'.
-        start_logic = f'=IFERROR(IF(ISBLANK(E{row+1}), VLOOKUP(C{row+1}, $AA$1:$AC$114, 2, FALSE), E{row+1}), 0)'
+        start_logic = f'=IFERROR(IF(ISBLANK(E{row+1}), VLOOKUP(C{row+1}, $AA$1:$AC${num_active_surahs}, 2, FALSE), E{row+1}), 0)'
         log_sheet.write_formula(row, 7, start_logic)
         
-        # Effective End Page: Nested fallback for To Page -> To Surah -> From Page -> From Surah
-        end_logic = f'=IFERROR(IF(NOT(ISBLANK(F{row+1})), F{row+1}, IF(NOT(ISBLANK(D{row+1})), VLOOKUP(D{row+1}, $AA$1:$AC$114, 3, FALSE), IF(NOT(ISBLANK(E{row+1})), E{row+1}, VLOOKUP(C{row+1}, $AA$1:$AC$114, 3, FALSE)))), 0)'
+        end_logic = f'=IFERROR(IF(NOT(ISBLANK(F{row+1})), F{row+1}, IF(NOT(ISBLANK(D{row+1})), VLOOKUP(D{row+1}, $AA$1:$AC${num_active_surahs}, 3, FALSE), IF(NOT(ISBLANK(E{row+1})), E{row+1}, VLOOKUP(C{row+1}, $AA$1:$AC${num_active_surahs}, 3, FALSE)))), 0)'
         log_sheet.write_formula(row, 8, end_logic)
         
     workbook.close()
