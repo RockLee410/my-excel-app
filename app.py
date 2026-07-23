@@ -222,7 +222,7 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     
     log_sheet.set_column('A:A', 15, date_format) 
     log_sheet.set_column('B:B', 15) 
-    log_sheet.set_column('C:D', 20) 
+    log_sheet.set_column('C:D', 22) 
     log_sheet.set_column('E:F', 15) 
     log_sheet.set_column('G:G', 35)
     
@@ -244,8 +244,9 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     num_active_surahs = len(active_surahs)
     
     # Populate the hidden exact dictionary for the Cascading Fallback feature based ONLY on active surahs
+    # Updated to inject the Surah Number before the name
     for i, s in enumerate(active_surahs):
-        log_sheet.write_string(i, 26, s[1]) # Name
+        log_sheet.write_string(i, 26, f"{s[0]}- {s[1]}") # Format: "Number- Name"
         log_sheet.write_number(i, 27, s[2]) # Start Page
         log_sheet.write_number(i, 28, s[3]) # End Page
         
@@ -257,7 +258,7 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         log_sheet.write_datetime(row, 0, current_date, date_format)
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
         
-        # Filtered Surah Dropdowns
+        # Filtered Surah Dropdowns (Now formatted with numbers)
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$AA$1:$AA${num_active_surahs}', 'ignore_blank': True})
         log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$AA$1:$AA${num_active_surahs}', 'ignore_blank': True})
         
