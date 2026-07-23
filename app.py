@@ -258,8 +258,13 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     action_sheet.write('A1', "🚀 High Priority Revision Goals", progress_format)
     action_sheet.write('A2', "This page automatically filters out pages that are 'Good' or 'Not Started'. It only shows what needs attention today!")
     
-    # Dynamic Array formula filtering Dashboard Rows where Status is Overdue OR Due Soon
-    action_sheet.write_formula('A4', f'=IFERROR(FILTER(\'Surah Dashboard\'!B6:H{last_dash_row}, ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H{last_dash_row}))), "All caught up! 🎉")')
+    # Adding Headers for the Action Plan Output
+    action_headers = ['Surah', 'Juz', 'Page', 'Category', 'Last Revised', 'Next Due', 'Status']
+    for col_num, data in enumerate(action_headers):
+        action_sheet.write(2, col_num, data, header_format)
+    
+    # Google Sheets optimized dynamic array formula with ARRAYFORMULA
+    action_sheet.write_formula('A4', f'=IFERROR(FILTER(\'Surah Dashboard\'!B6:H{last_dash_row}, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H{last_dash_row})))), "All caught up! 🎉")')
 
     # --- SHEET 3: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily_Log') 
