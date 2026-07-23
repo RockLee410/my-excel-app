@@ -114,7 +114,6 @@ if st.session_state["history"]:
     st.line_chart(daily_counts.set_index('Date'))
     st.markdown("---")
 
-
 # --- GENERATOR SETTINGS ---
 def add_juz_30(): st.session_state["cat1"] = list(set(st.session_state["cat1"] + [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78]))
 def add_juz_29(): st.session_state["cat1"] = list(set(st.session_state["cat1"] + [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77]))
@@ -137,7 +136,6 @@ with col3:
 with col4:
     st.button("⚡ Quick Add: Juz 29 to Category 2", on_click=add_juz_29_cat2)
 cat2_selections = st.multiselect("🟡 Category 2: Needs Revision", options=surah_options, key="cat2")
-
 
 # --- EXCEL GENERATION LOGIC ---
 if st.button("Generate Downloadable Excel Tracker", type="primary"):
@@ -251,8 +249,8 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     action_sheet.set_column('A:B', 22)
     action_sheet.set_column('C:C', 10)
     action_sheet.set_column('D:D', 20)
-    action_sheet.set_column('E:E', 18)
-    action_sheet.set_column('F:F', 18)
+    # Applying the date_format directly to columns E and F to fix the raw serial numbers
+    action_sheet.set_column('E:F', 18, date_format) 
     action_sheet.set_column('G:G', 15)
     
     action_sheet.write('A1', "🚀 High Priority Revision Goals", progress_format)
@@ -263,8 +261,8 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     for col_num, data in enumerate(action_headers):
         action_sheet.write(2, col_num, data, header_format)
     
-    # Google Sheets optimized dynamic array formula with ARRAYFORMULA
-    action_sheet.write_formula('A4', f'=IFERROR(FILTER(\'Surah Dashboard\'!B6:H{last_dash_row}, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H{last_dash_row})))), "All caught up! 🎉")')
+    # Google Sheets absolute native formula (No _xlws, No closed ranges)
+    action_sheet.write_formula('A4', '=IFERROR(FILTER(\'Surah Dashboard\'!B6:H, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H)))), "All caught up! 🎉")')
 
     # --- SHEET 3: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily_Log') 
