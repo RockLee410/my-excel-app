@@ -46,6 +46,7 @@ SURAH_DATA = [
 ]
 
 surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
+total_surahs = len(SURAH_DATA)
 
 # --- STREAMLIT UI & SESSION STATE ---
 st.set_page_config(page_title="Quran Memorization Tracker", layout="wide")
@@ -118,7 +119,7 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     
     # --- SHEET 1: SURAH DASHBOARD ---
     worksheet = workbook.add_worksheet('Surah Dashboard')
-    worksheet.freeze_panes(5, 3) 
+    worksheet.freeze_panes(5, 0) # Removed vertical freeze pane
     
     worksheet.set_column('A:A', 5)
     worksheet.set_column('B:B', 22)
@@ -128,10 +129,13 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     worksheet.set_column('F:F', 18)
     worksheet.set_column('G:G', 15)
     worksheet.set_column('H:H', 20)
+    worksheet.set_column('I:I', 5) # Buffer column
+    worksheet.set_column('J:K', 20) 
 
     worksheet.write('A1', f"Daily Dedication Goal: {daily_time if daily_time else 'Not specified'}", bold_format)
     worksheet.write('A2', "Rule: Category 1 & 2 Pages must be revised every 14 days.")
-    worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!A2:A1001) & " Days"', fire_format)
+    # Total days logged now counts column C entries in the daily log
+    worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C1001) & " Days"', fire_format)
     
     headers = ['No.', 'Surah', 'Page', 'Category', 'Last Revised (Date)', 'Next Revision Due', 'Status', 'Notes']
     for col_num, data in enumerate(headers):
@@ -192,25 +196,25 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     worksheet.conditional_format(f'G6:G{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🔴 Overdue"', 'format': red_bg})
     worksheet.conditional_format(f'G6:G{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
 
-    # Chart tracking
-    worksheet.write('J4', 'Category', header_format)
-    worksheet.write('K4', 'Total Pages', header_format)
-    worksheet.write('J5', '1 - Confident')
-    worksheet.write_formula('K5', f'=COUNTIF($D$6:$D${last_dash_row}, "1 - Confident")')
-    worksheet.write('J6', '2 - Needs Revision')
-    worksheet.write_formula('K6', f'=COUNTIF($D$6:$D${last_dash_row}, "2 - Needs Revision")')
-    worksheet.write('J7', '3 - Not Memorized')
-    worksheet.write_formula('K7', f'=COUNTIF($D$6:$D${last_dash_row}, "3 - Not Memorized")')
+    # Summary Table (Moved up to J1:K4)
+    worksheet.write('J1', 'Category', header_format)
+    worksheet.write('K1', 'Total Pages', header_format)
+    worksheet.write('J2', '1 - Confident')
+    worksheet.write_formula('K2', f'=COUNTIF($D$6:$D${last_dash_row}, "1 - Confident")')
+    worksheet.write('J3', '2 - Needs Revision')
+    worksheet.write_formula('K3', f'=COUNTIF($D$6:$D${last_dash_row}, "2 - Needs Revision")')
+    worksheet.write('J4', '3 - Not Memorized')
+    worksheet.write_formula('K4', f'=COUNTIF($D$6:$D${last_dash_row}, "3 - Not Memorized")')
 
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({
         'name': 'Memorization Progress',
-        'categories': "='Surah Dashboard'!$J$5:$J$7",
-        'values': "='Surah Dashboard'!$K$5:$K$7",
+        'categories': "='Surah Dashboard'!$J$2:$J$4",
+        'values': "='Surah Dashboard'!$K$2:$K$4",
         'points': [{'fill': {'color': '#92D050'}}, {'fill': {'color': '#FFC000'}}, {'fill': {'color': '#D9D9D9'}}],
     })
     chart.set_title({'name': 'Memorization by Page Count'})
-    worksheet.insert_chart('J9', chart, {'x_scale': 1.2, 'y_scale': 1.2})
+    worksheet.insert_chart('J6', chart, {'x_scale': 1.2, 'y_scale': 1.2})
 
     # --- SHEET 2: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily_Log') 
