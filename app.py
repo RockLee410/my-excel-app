@@ -138,7 +138,7 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     for col_num, data in enumerate(headers):
         worksheet.write(4, col_num, data, header_format)
 
-    current_excel_row = 5 # Starts at row 6 in Excel
+    current_excel_row = 5 
     
     for s in SURAH_DATA:
         surah_string = f"{s[0]}. {s[1]}"
@@ -154,7 +154,6 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         start_row = current_excel_row
         end_row = current_excel_row + num_pages - 1
         
-        # Merge Cells for Surahs spanning multiple pages!
         if num_pages > 1:
             worksheet.merge_range(start_row, 0, end_row, 0, s[0], merge_format_center)
             worksheet.merge_range(start_row, 1, end_row, 1, s[1], merge_format_left)
@@ -167,7 +166,7 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
             worksheet.write(row, 2, p, border_format)
             worksheet.write(row, 3, category, border_format)
             
-            # The Math Engine now checks the hidden 'Effective Start Page' (H) and 'Effective End Page' (I) in Daily Log
+            # The Math Engine checks the hidden 'Effective Start Page' (H) and 'Effective End Page' (I) in Daily Log
             range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$C{row+1}, Daily_Log!$I$2:$I$1001, ">="&$C{row+1})=0, "", MAXIFS(Daily_Log!$A$2:$A$1001, Daily_Log!$H$2:$H$1001, "<="&$C{row+1}, Daily_Log!$I$2:$I$1001, ">="&$C{row+1}))'
             worksheet.write_formula(row, 4, range_formula, formula_gray_format) 
             
@@ -181,9 +180,8 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
             
         current_excel_row += num_pages
         
-    last_dash_row = current_excel_row + 4 # Account for header offset
+    last_dash_row = current_excel_row + 4 
     
-    # Needs to be written after last_dash_row is calculated
     worksheet.write_formula('A3', f'="🏆 Total Pages Memorized: " & TEXT(COUNTIF(D6:D{last_dash_row}, "1 - Confident")/604, "0.0%") & " (" & COUNTIF(D6:D{last_dash_row}, "1 - Confident") & " / 604 pages)"', progress_format)
 
     for row in range(5, last_dash_row):
@@ -221,12 +219,11 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     
     log_sheet.set_column('A:A', 15, date_format) 
     log_sheet.set_column('B:B', 15) 
-    log_sheet.set_column('C:C', 25) 
-    log_sheet.set_column('D:D', 20) 
-    log_sheet.set_column('E:F', 20)
+    log_sheet.set_column('C:D', 20) 
+    log_sheet.set_column('E:F', 15) 
     log_sheet.set_column('G:G', 35)
     
-    log_headers = ['Date', 'Day', 'Surah', 'Read Entire Surah?', 'Start Page (If No)', 'End Page (Optional)', 'Notes / Specific Verses']
+    log_headers = ['Date', 'Day', 'From Surah', 'To Surah (Optional)', 'From Page (Opt)', 'To Page (Opt)', 'Notes / Specific Verses']
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
         
@@ -236,7 +233,7 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     log_sheet.set_column('H:I', None, None, {'hidden': True})
     log_sheet.set_column('AA:AC', None, None, {'hidden': True})
     
-    # Populate the hidden exact dictionary for the Full Surah feature (Columns AA, AB, AC)
+    # Populate the hidden exact dictionary for the Cascading Fallback feature
     for i, s in enumerate(SURAH_DATA):
         log_sheet.write_string(i, 26, s[1]) # Name
         log_sheet.write_number(i, 27, s[2]) # Start Page
@@ -250,13 +247,18 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
         log_sheet.write_datetime(row, 0, current_date, date_format)
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
         
-        # New Dropdowns
+        # Surah Dropdowns
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$AA$1:$AA${total_surahs}', 'ignore_blank': True})
-        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': ['Yes', 'No'], 'ignore_blank': True})
+        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$AA$1:$AA${total_surahs}', 'ignore_blank': True})
         
-        # The Hidden Brain (Columns H and I): It checks if "Yes" is selected. If so, it instantly VLOOKUPs the real pages!
-        log_sheet.write_formula(row, 7, f'=IFERROR(IF($D{row+1}="Yes", VLOOKUP($C{row+1}, $AA$1:$AC$114, 2, FALSE), $E{row+1}), 0)')
-        log_sheet.write_formula(row, 8, f'=IFERROR(IF($D{row+1}="Yes", VLOOKUP($C{row+1}, $AA$1:$AC$114, 3, FALSE), IF(ISBLANK($F{row+1}), $H{row+1}, $F{row+1})), 0)')
+        # --- THE CASCADING FALLBACK ENGINE (Columns H and I) ---
+        # Effective Start Page: If 'From Page' is blank, lookup 'From Surah' start page. Otherwise use 'From Page'.
+        start_logic = f'=IFERROR(IF(ISBLANK(E{row+1}), VLOOKUP(C{row+1}, $AA$1:$AC$114, 2, FALSE), E{row+1}), 0)'
+        log_sheet.write_formula(row, 7, start_logic)
+        
+        # Effective End Page: Nested fallback for To Page -> To Surah -> From Page -> From Surah
+        end_logic = f'=IFERROR(IF(NOT(ISBLANK(F{row+1})), F{row+1}, IF(NOT(ISBLANK(D{row+1})), VLOOKUP(D{row+1}, $AA$1:$AC$114, 3, FALSE), IF(NOT(ISBLANK(E{row+1})), E{row+1}, VLOOKUP(C{row+1}, $AA$1:$AC$114, 3, FALSE)))), 0)'
+        log_sheet.write_formula(row, 8, end_logic)
         
     workbook.close()
     
