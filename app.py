@@ -148,7 +148,7 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     progress_format = workbook.add_format({'bold': True, 'font_color': '#006100', 'font_size': 14})
     fire_format = workbook.add_format({'bold': True, 'font_color': '#D9534F', 'font_size': 14})
     
-    # We now have TWO date formats: one for the log (with borders) and one for the dashboard (borderless)
+    # Date formats
     date_format = workbook.add_format({'num_format': 'yyyy-mm-dd', 'border': 1})
     action_date_format = workbook.add_format({'num_format': 'yyyy-mm-dd'})
     
@@ -204,11 +204,15 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
             
         for i, p in enumerate(pages):
             row = start_row + i
+            
+            # HIDE CATEGORY 3 ROWS INITIALLY
+            if category == "3 - Not Memorized":
+                worksheet.set_row(row, None, None, {'hidden': True})
+                
             worksheet.write(row, 2, get_juz(p), merge_center) # Write Juz
             worksheet.write(row, 3, p, border_format)         # Write Page
             worksheet.write(row, 4, category, border_format)  # Write Category
             
-            # Math Engine referencing shifted columns (D=Page, E=Cat, F=Last Rev, G=Next Rev)
             range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$I$2:$I$10001, "<="&$D{row+1}, Daily_Log!$J$2:$J$10001, ">="&$D{row+1})=0, "", MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$I$2:$I$10001, "<="&$D{row+1}, Daily_Log!$J$2:$J$10001, ">="&$D{row+1}))'
             worksheet.write_formula(row, 5, range_formula, formula_gray) 
             
@@ -223,6 +227,9 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
         current_excel_row += num_pages
         
     last_dash_row = current_excel_row + 4 
+    
+    # ADD AUTOFILTER TO THE DASHBOARD HEADERS (A5 to I[last_row])
+    worksheet.autofilter(4, 0, current_excel_row - 1, 8)
     
     worksheet.write_formula('A3', f'="🏆 Total Pages Memorized: " & TEXT(COUNTIF(E6:E{last_dash_row}, "1 - Confident")/604, "0.0%") & " (" & COUNTIF(E6:E{last_dash_row}, "1 - Confident") & " / 604 pages)"', progress_format)
 
@@ -247,29 +254,24 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     chart.add_series({'categories': "='Surah Dashboard'!$L$2:$L$4", 'values': "='Surah Dashboard'!$M$2:$M$4", 'points': [{'fill': {'color': '#92D050'}}, {'fill': {'color': '#FFC000'}}, {'fill': {'color': '#D9D9D9'}}]})
     worksheet.insert_chart('L6', chart, {'x_scale': 1.2, 'y_scale': 1.2})
 
-    # --- SHEET 2: TODAY'S ACTION PLAN (THE PRIORITY TAB) ---
+    # --- SHEET 2: TODAY'S ACTION PLAN ---
     action_sheet = workbook.add_worksheet("Today's Action Plan")
-    action_sheet.hide_gridlines(2) # Turns off the default Excel gridlines for a clean dashboard look
+    action_sheet.hide_gridlines(2) 
     
     action_sheet.set_column('A:B', 22)
     action_sheet.set_column('C:C', 10)
     action_sheet.set_column('D:D', 20)
-    # Applying the borderless date format to columns E and F
     action_sheet.set_column('E:F', 18, action_date_format) 
     action_sheet.set_column('G:G', 15)
     
     action_sheet.write('A1', "🚀 High Priority Revision Goals", progress_format)
     action_sheet.write('A2', "This page automatically filters out pages that are 'Good' or 'Not Started'. It only shows what needs attention today!")
     
-    # The Headers
     action_headers = ['Surah', 'Juz', 'Page', 'Category', 'Last Revised', 'Next Due', 'Status']
     for col_num, data in enumerate(action_headers):
         action_sheet.write(3, col_num, data, header_format)
         
-    # The 1-Click Activation Hack for Google Sheets
     action_sheet.write('A5', "⚠️ GOOGLE SHEETS FIX: Double-click cell A6 below, delete the empty space at the very start, and hit Enter!", fire_format)
-    
-    # We output the formula as TEXT (by placing a space before the =). 
     action_sheet.write_string('A6', ' =IFERROR(FILTER(\'Surah Dashboard\'!B6:H, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H)))), "All caught up! 🎉")')
 
     # --- SHEET 3: DAILY LOG ---
@@ -280,8 +282,8 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     log_sheet.set_column('B:B', 15) 
     log_sheet.set_column('C:D', 22) 
     log_sheet.set_column('E:F', 15) 
-    log_sheet.set_column('G:G', 15) # Minutes
-    log_sheet.set_column('H:H', 35) # Notes
+    log_sheet.set_column('G:G', 15) 
+    log_sheet.set_column('H:H', 35) 
     
     log_headers = ['Date', 'Day', 'From Surah', 'To Surah (Optional)', 'From Page (Opt)', 'To Page (Opt)', 'Minutes Spent', 'Notes / Specific Verses']
     for col_num, data in enumerate(log_headers):
@@ -295,24 +297,22 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     num_active_surahs = len(active_surahs)
     
     for i, s in enumerate(active_surahs):
-        log_sheet.write_string(i, 27, f"{s[0]}- {s[1]}") # AB (Name)
-        log_sheet.write_number(i, 28, s[2])              # AC (Start)
-        log_sheet.write_number(i, 29, s[3])              # AD (End)
+        log_sheet.write_string(i, 27, f"{s[0]}- {s[1]}") 
+        log_sheet.write_number(i, 28, s[2])              
+        log_sheet.write_number(i, 29, s[3])              
         
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
     
-    # 🌟 DATA INJECTION: Write History back into the file OR start fresh
     history_data = st.session_state["history"]
     start_date = date.today()
     if history_data:
         try:
             max_date = pd.to_datetime(history_data[-1]['Date']).date()
-            start_date = max_date + timedelta(days=1) # Future rows start after the last logged date
+            start_date = max_date + timedelta(days=1) 
         except: pass
         
     for row in range(1, 10001):
         if row - 1 < len(history_data):
-            # Injecting Old Data
             hist = history_data[row-1]
             try: log_date = pd.to_datetime(hist['Date']).date()
             except: log_date = start_date
@@ -325,7 +325,6 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
             if str(hist.get('Minutes Spent', '')): log_sheet.write_number(row, 6, int(float(hist.get('Minutes Spent'))))
             if str(hist.get('Notes / Specific Verses', '')): log_sheet.write_string(row, 7, str(hist.get('Notes / Specific Verses', '')))
         else:
-            # Generating Blank Future Rows
             offset = row - 1 - len(history_data)
             current_date = start_date + timedelta(days=offset)
             log_sheet.write_datetime(row, 0, current_date, date_format)
@@ -334,7 +333,6 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$AB$1:$AB${num_active_surahs}', 'ignore_blank': True})
         log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$AB$1:$AB${num_active_surahs}', 'ignore_blank': True})
         
-        # Cascading Fallback formulas shifted to point to new AB/AC/AD columns
         log_sheet.write_formula(row, 8, f'=IFERROR(IF(ISBLANK(E{row+1}), VLOOKUP(C{row+1}, $AB$1:$AD${num_active_surahs}, 2, FALSE), E{row+1}), 0)')
         log_sheet.write_formula(row, 9, f'=IFERROR(IF(NOT(ISBLANK(F{row+1})), F{row+1}, IF(NOT(ISBLANK(D{row+1})), VLOOKUP(D{row+1}, $AB$1:$AD${num_active_surahs}, 3, FALSE), IF(NOT(ISBLANK(E{row+1})), E{row+1}, VLOOKUP(C{row+1}, $AB$1:$AD${num_active_surahs}, 3, FALSE)))), 0)')
         
