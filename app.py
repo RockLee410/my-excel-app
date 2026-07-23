@@ -114,7 +114,9 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
     merge_format_center = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
     merge_format_left = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter'})
     
+    # Status Colors
     red_bg = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+    yellow_bg = workbook.add_format({'bg_color': '#FFEB9C', 'font_color': '#9C6500'})
     green_bg = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
     
     # --- SHEET 1: SURAH DASHBOARD ---
@@ -176,7 +178,8 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
             f_formula = f'=IF(OR(D{row+1}="1 - Confident", D{row+1}="2 - Needs Revision"), IF(E{row+1}="", "", E{row+1}+14), "")'
             worksheet.write_formula(row, 5, f_formula, formula_gray_format)
             
-            g_formula = f'=IF(D{row+1}="3 - Not Memorized", "⚪ Not Started", IF(E{row+1}="", "Pending", IF(TODAY()>F{row+1}, "🔴 Overdue", "🟢 Good")))'
+            # Updated Status Logic to include "Due Soon" (<= 3 days)
+            g_formula = f'=IF(D{row+1}="3 - Not Memorized", "⚪ Not Started", IF(E{row+1}="", "Pending", IF(TODAY()>F{row+1}, "🔴 Overdue", IF(F{row+1}-TODAY()<=3, "🟡 Due Soon", "🟢 Good"))))'
             worksheet.write_formula(row, 6, g_formula, border_format)
             
             worksheet.write_blank(row, 7, None, border_format)
@@ -193,7 +196,9 @@ if st.button("Generate My Custom Excel Tracker", type="primary"):
             'source': ['1 - Confident', '2 - Needs Revision', '3 - Not Memorized']
         })
         
+    # Updated Conditional Formatting Rules
     worksheet.conditional_format(f'G6:G{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🔴 Overdue"', 'format': red_bg})
+    worksheet.conditional_format(f'G6:G{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🟡 Due Soon"', 'format': yellow_bg})
     worksheet.conditional_format(f'G6:G{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
 
     # Summary Table (Moved up to J1:K4)
