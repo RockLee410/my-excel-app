@@ -65,6 +65,21 @@ if "history" not in st.session_state: st.session_state["history"] = []
 
 st.title("📖 Master Quran Tracker")
 
+# 0. EXPANDABLE ONBOARDING GUIDE
+with st.expander("📖 How to use this Tracker (Start Here!)"):
+    st.markdown("""
+    **Welcome to your automated Quran revision dashboard!** Here is how to set it up in 3 easy steps:
+    
+    1. **Personalize & Generate:** Enter your name below, add the Surahs you have memorized to the correct categories, and click the blue 'Generate' button to download your tracker.
+    2. **Upload to Google Sheets:** Go to [Google Sheets](https://sheets.google.com), open a new blank sheet, and go to **File > Import > Upload** to bring your tracker into the cloud.
+    3. **The 1-Second Setup Fix:** Because Google Sheets handles advanced formulas differently, you need to "activate" two specific cells after uploading:
+       * Go to the **Surah Dashboard** tab, double-click cell **G4** (Current Streak), delete the empty space at the very start, and hit **Enter**.
+       * Go to the **Today's Action Plan** tab, double-click cell **A6**, delete the empty space, and hit **Enter**.
+       
+    *That's it! Every day, just log what you studied in the **Daily Log** tab, and your Dashboard and Action Plan will update automatically.*
+    """)
+    st.markdown("---")
+
 # 1. THE STATEFUL IMPORTER
 uploaded_file = st.file_uploader("📂 Have an existing Tracker? Upload it here to carry over your history & settings!", type=["xlsx"])
 
@@ -138,8 +153,11 @@ def add_juz_30_cat2():
 def add_juz_29_cat2():
     add_to_category("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
 
-st.write("Generate your updated Excel tracker below.")
-st.markdown("### 🗂️ Manage Categorized Surahs")
+
+st.markdown("### 👤 1. Personalize Your Tracker")
+user_name = st.text_input("What is your name?", "My")
+
+st.markdown("### 🗂️ 2. Manage Categorized Surahs")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -168,7 +186,7 @@ cat2_selections = st.multiselect(
 )
 
 # --- EXCEL GENERATION LOGIC ---
-if st.button("Generate Downloadable Excel Tracker", type="primary"):
+if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     output = BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     
@@ -200,7 +218,7 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     worksheet.set_column('D:D', 8)  
     worksheet.set_column('E:E', 20) 
     worksheet.set_column('F:F', 18)
-    worksheet.set_column('G:G', 18)
+    worksheet.set_column('G:G', 20)
     worksheet.set_column('H:H', 15)
     worksheet.set_column('I:I', 20)
     worksheet.set_column('L:M', 20) 
@@ -208,6 +226,11 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     worksheet.write('A1', "Rule: Category 1 & 2 Pages must be revised every 14 days.")
     worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C10001) & " Days"', fire_format)
     worksheet.write_formula('D4', '="⏱️ Total Time Spent: " & ROUND(SUM(Daily_Log!G2:G10001)/60, 1) & " Hours"', fire_format)
+    
+    # The Patched Current Streak Hack Setup
+    worksheet.write('G3', "⚠️ GOOGLE SHEETS FIX: Dbl-click G4 below, delete the space, and hit Enter!", workbook.add_format({'font_color': '#D9534F', 'italic': True, 'bold': True}))
+    streak_formula = ' ="⚡ Current Streak: " & IF(TODAY() - MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$C$2:$C$10001, "<>") > 1, 0, IFERROR(MATCH(0, ARRAYFORMULA(COUNTIFS(Daily_Log!$A$2:$A$10001, MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$C$2:$C$10001, "<>") - SEQUENCE(365,1,0), Daily_Log!$C$2:$C$10001, "<>")), 0) - 1, 365)) & " Days"'
+    worksheet.write_string('G4', streak_formula)
     
     headers = ['No.', 'Surah', 'Juz', 'Page', 'Category', 'Last Revised (Date)', 'Next Revision Due', 'Status', 'Notes']
     for col_num, data in enumerate(headers):
@@ -365,5 +388,12 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
         
     workbook.close()
     
-    st.success("✅ Your ultimate tracker is ready!")
-    st.download_button(label="📥 Download Upgraded Excel Tracker", data=output.getvalue(), file_name="Quran_Tracker_Master.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.success("✅ Your personalized tracker is ready!")
+    
+    safe_name = user_name.strip().replace(" ", "_") if user_name.strip() else "My"
+    st.download_button(
+        label="📥 Download Upgraded Excel Tracker", 
+        data=output.getvalue(), 
+        file_name=f"{safe_name}_Quran_Tracker.xlsx", 
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
