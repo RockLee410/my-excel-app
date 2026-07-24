@@ -121,24 +121,19 @@ def remove_category_overlap(changed_category):
         if surah not in st.session_state[changed_category]
     ]
 
-
 def add_to_category(category, surahs):
     existing = st.session_state[category]
     st.session_state[category] = existing + [surah for surah in surahs if surah not in existing]
     remove_category_overlap(category)
 
-
 def add_juz_30():
     add_to_category("cat1", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78])
-
 
 def add_juz_29():
     add_to_category("cat1", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
 
-
 def add_juz_30_cat2():
     add_to_category("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78])
-
 
 def add_juz_29_cat2():
     add_to_category("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
@@ -284,9 +279,6 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     chart = workbook.add_chart({'type': 'pie'})
     chart.add_series({'categories': "='Surah Dashboard'!$L$2:$L$4", 'values': "='Surah Dashboard'!$M$2:$M$4", 'points': [{'fill': {'color': '#92D050'}}, {'fill': {'color': '#FFC000'}}, {'fill': {'color': '#D9D9D9'}}]})
     chart.set_size({'width': 480, 'height': 300})
-    
-    # Google Sheets does not reliably render floating charts inside frozen rows.
-    # Place it immediately below the frozen header instead.
     worksheet.insert_chart('O6', chart, {'object_position': 3})
 
     # --- SHEET 2: TODAY'S ACTION PLAN ---
@@ -309,7 +301,49 @@ if st.button("Generate Downloadable Excel Tracker", type="primary"):
     action_sheet.write('A5', "⚠️ GOOGLE SHEETS FIX: Double-click cell A6 below, delete the empty space at the very start, and hit Enter!", fire_format)
     action_sheet.write_string('A6', ' =IFERROR(FILTER(\'Surah Dashboard\'!B6:H, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H)))), "All caught up! 🎉")')
 
-    # --- SHEET 3: DAILY LOG ---
+    # --- SHEET 3: WEEKLY BUDDY REPORT & TEST GENERATOR ---
+    buddy_sheet = workbook.add_worksheet("Weekly Buddy Report")
+    buddy_sheet.hide_gridlines(2) 
+    
+    buddy_sheet.set_column('A:A', 15, action_date_format)
+    buddy_sheet.set_column('B:B', 15) 
+    buddy_sheet.set_column('C:D', 22) 
+    buddy_sheet.set_column('E:F', 15) 
+    buddy_sheet.set_column('G:G', 15) 
+    buddy_sheet.set_column('H:H', 35)
+    buddy_sheet.set_column('J:J', 18)
+    buddy_sheet.set_column('K:L', 20)
+    
+    buddy_sheet.write('A1', "🤝 Weekly Buddy Report", progress_format)
+    buddy_sheet.write('A2', "This sheet automatically pulls everything you studied in the last 7 days. Hand your device to your buddy!")
+    
+    buddy_sheet.write('A4', "⚠️ GOOGLE SHEETS FIX: Double-click cell A6 below, delete the empty space at the very start, and hit Enter!", fire_format)
+    buddy_sheet.write_string('A6', ' =IFERROR(FILTER(Daily_Log!A2:H10001, Daily_Log!A2:A10001 >= (TODAY() - 7), Daily_Log!A2:A10001 <> ""), "No studying logged in the last 7 days! 🏃‍♂️")')
+    
+    # Writing headers matching the Daily Log
+    for col_num, data in enumerate(['Date', 'Day', 'From Surah', 'To Surah', 'From Page', 'To Page', 'Minutes', 'Notes']):
+        buddy_sheet.write(4, col_num, data, header_format)
+        
+    # --- RANDOMIZER SECTION ---
+    buddy_sheet.merge_range('J2:L2', "🎲 Random Test Generator", header_format)
+    buddy_sheet.write('J3', "Change to roll dice 👉")
+    buddy_sheet.data_validation('K3', {'validate': 'list', 'source': ['🎲 Roll 1', '🎲 Roll 2', '🎲 Roll 3', '🎲 Roll 4', '🎲 Roll 5']})
+    buddy_sheet.write('K3', '🎲 Roll 1', border_format)
+    
+    # Hidden random index generator (Recalculates when K3 is changed)
+    buddy_sheet.write_formula('L3', '=IF(COUNTA(A6:A1000)=0, 1, RANDBETWEEN(1, COUNTA(A6:A1000)))', workbook.add_format({'font_color': '#FFFFFF'}))
+    
+    buddy_sheet.write('J4', "Test Surah:", bold_format)
+    buddy_sheet.write_formula('K4', '=IF(COUNTA(A6:A1000)=0, "N/A", INDEX(C6:C1000, $L$3))', yellow_bg)
+    
+    buddy_sheet.write('J5', "Start From:", bold_format)
+    buddy_sheet.write_formula('K5', '=IF(COUNTA(A6:A1000)=0, "N/A", IF(INDEX(E6:E1000, $L$3)="", "Start of Surah", "Page " & INDEX(E6:E1000, $L$3)))', yellow_bg)
+    
+    buddy_sheet.write('J6', "Buddy Task:", bold_format)
+    buddy_sheet.merge_range('K6:L7', '="Ask them to recite 1 to 2 pages starting from " & K5 & " (" & K4 & ")."', merge_left)
+
+
+    # --- SHEET 4: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily_Log') 
     log_sheet.freeze_panes(1, 0) 
     
