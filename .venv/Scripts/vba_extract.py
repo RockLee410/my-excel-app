@@ -1,4 +1,4 @@
-#!C:\Users\EmadLahham\Downloads\my-excel-app\.venv\Scripts\python.exe
+#!C:\Users\Emad\Downloads\my-excel-app\.venv\Scripts\python.exe
 
 ##############################################################################
 #
