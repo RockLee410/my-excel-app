@@ -274,8 +274,15 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
            
             worksheet.write_blank(row, 8, None, border_format)
 
-            # 🧠 NEW CORE ENGINE: The Dynamic Action Score + Unique ROW() ID
-            score_formula = f'=IF(H{dash_row_num}="🔴 Overdue", 100000, IF(H{dash_row_num}="Pending", 200000, IF(E{dash_row_num}="2 - Needs Revision", 300000, IF(H{dash_row_num}="🟡 Due Soon", 400000, IF(E{dash_row_num}="3 - Not Memorized", 500000, 999999))))) + ROW()'
+            # 🧠 CORE ENGINE: Rank actions by tier first, then by row order for stable ordering
+            score_formula = (
+                f'=IF(H{dash_row_num}="🔴 Overdue", 1, '
+                f'IF(H{dash_row_num}="Pending", 2, '
+                f'IF(E{dash_row_num}="2 - Needs Revision", 3, '
+                f'IF(H{dash_row_num}="🟡 Due Soon", 4, '
+                f'IF(E{dash_row_num}="3 - Not Memorized", 5, 6)))))'
+                f' + (ROW()/1000000)'
+            )
             worksheet.write_formula(row, 9, score_formula)
            
         current_excel_row += num_pages
