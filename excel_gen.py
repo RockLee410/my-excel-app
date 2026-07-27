@@ -349,7 +349,8 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
         dash_cols = ['B', 'C', 'D', 'E', 'F', 'G', 'H']
         for idx, letter in enumerate(dash_cols):
             target_col = idx + 2
-            formula = f'=IF(OR($B{action_row}="", $B{action_row}>=900000), "", INDEX(\'Surah Dashboard\'!{letter}$6:{letter}${last_dash_row}, MATCH($B{action_row}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)))'
+            # Fixed the $B{action_row}>=6 threshold to properly hide Tier 6 (🟢 Good)
+            formula = f'=IF(OR($B{action_row}="", $B{action_row}>=6), "", INDEX(\'Surah Dashboard\'!{letter}$6:{letter}${last_dash_row}, MATCH($B{action_row}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)))'
             action_sheet.write_formula(row, target_col, formula)
 
     # --- SHEET 3: DAILY LOG ---
