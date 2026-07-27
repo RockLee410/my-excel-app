@@ -219,6 +219,7 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     worksheet.set_column('G:G', 20)
     worksheet.set_column('H:H', 15)
     worksheet.set_column('I:I', 20)
+    worksheet.set_column('J:J', None, None, {'hidden': True}) # Hidden Action Score Column
     worksheet.set_column('L:M', 20)
 
     worksheet.write('A1', "Rule: Priority 1 & 2 Pages must be revised every 14 days.")
@@ -233,72 +234,7 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     for col_num, data in enumerate(headers):
         worksheet.write(4, col_num, data, header_format)
 
-    history_data = st.session_state["history"]
     current_excel_row = 5
-    dashboard_rows_data = []
-
-    def get_last_revised_date_for_page(page_num, history_rows):
-        last_date = None
-        for entry in history_rows:
-            try:
-                entry_date = pd.to_datetime(entry.get('Date', ''), errors='coerce').date()
-            except Exception:
-                continue
-            if not entry_date:
-                continue
-
-            start_page = None
-            end_page = None
-
-            from_page = str(entry.get('From Page (Opt)', '')).strip()
-            to_page = str(entry.get('To Page (Opt)', '')).strip()
-            from_surah = str(entry.get('From Surah', '')).strip()
-            to_surah = str(entry.get('To Surah (Optional)', '')).strip()
-
-            if from_page:
-                start_page = int(float(from_page))
-            elif from_surah:
-                for surah in SURAH_DATA:
-                    if f"{surah[0]}. {surah[1]}" == from_surah:
-                        start_page = surah[2]
-                        break
-
-            if to_page:
-                end_page = int(float(to_page))
-            elif to_surah:
-                for surah in SURAH_DATA:
-                    if f"{surah[0]}. {surah[1]}" == to_surah:
-                        end_page = surah[3]
-                        break
-            elif start_page is not None and from_surah:
-                for surah in SURAH_DATA:
-                    if f"{surah[0]}. {surah[1]}" == from_surah:
-                        end_page = surah[3]
-                        break
-            elif start_page is not None:
-                end_page = start_page
-
-            if start_page is not None and end_page is not None and start_page <= page_num <= end_page:
-                if last_date is None or entry_date > last_date:
-                    last_date = entry_date
-
-        return last_date
-
-    def get_dashboard_status(category, page_num, history_rows):
-        if category == "3 - Not Memorized":
-            return "⚪ Not Started"
-
-        last_revised = get_last_revised_date_for_page(page_num, history_rows)
-        if not last_revised:
-            return "Pending"
-
-        next_due = last_revised + timedelta(days=14)
-        today = date.today()
-        if today > next_due:
-            return "🔴 Overdue"
-        if next_due - today <= timedelta(days=3):
-            return "🟡 Due Soon"
-        return "🟢 Good"
    
     for s in SURAH_DATA:
         surah_string = f"{s[0]}. {s[1]}"
@@ -319,7 +255,6 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
         for i, p in enumerate(pages):
             row = start_row + i
             dash_row_num = row + 1
-            status = get_dashboard_status(category, p, history_data)
            
             if category == "3 - Not Memorized":
                 worksheet.set_row(row, None, None, {'hidden': True})
@@ -328,24 +263,20 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
             worksheet.write(row, 3, p, border_format)        
             worksheet.write(row, 4, category, border_format)  
            
-            range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$I$2:$I$10001, "<="&$D{row+1}, Daily_Log!$J$2:$J$10001, ">="&$D{row+1})=0, "", MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$I$2:$I$10001, "<="&$D{row+1}, Daily_Log!$J$2:$J$10001, ">="&$D{row+1}))'
+            range_formula = f'=IF(MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$I$2:$I$10001, "<="&$D{dash_row_num}, Daily_Log!$J$2:$J$10001, ">="&$D{dash_row_num})=0, "", MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$I$2:$I$10001, "<="&$D{dash_row_num}, Daily_Log!$J$2:$J$10001, ">="&$D{dash_row_num}))'
             worksheet.write_formula(row, 5, range_formula, formula_gray)
            
-            f_formula = f'=IF(OR(E{row+1}="1 - Confident", E{row+1}="2 - Needs Revision"), IF(F{row+1}="", "", F{row+1}+14), "")'
+            f_formula = f'=IF(OR(E{dash_row_num}="1 - Confident", E{dash_row_num}="2 - Needs Revision"), IF(F{dash_row_num}="", "", F{dash_row_num}+14), "")'
             worksheet.write_formula(row, 6, f_formula, formula_gray)
            
-            g_formula = f'=IF(E{row+1}="3 - Not Memorized", "⚪ Not Started", IF(F{row+1}="", "Pending", IF(TODAY()>G{row+1}, "🔴 Overdue", IF(G{row+1}-TODAY()<=3, "🟡 Due Soon", "🟢 Good"))))'
+            g_formula = f'=IF(E{dash_row_num}="3 - Not Memorized", "⚪ Not Started", IF(F{dash_row_num}="", "Pending", IF(TODAY()>G{dash_row_num}, "🔴 Overdue", IF(G{dash_row_num}-TODAY()<=3, "🟡 Due Soon", "🟢 Good"))))'
             worksheet.write_formula(row, 7, g_formula, border_format)
            
             worksheet.write_blank(row, 8, None, border_format)
-            dashboard_rows_data.append({
-                'dash_row': dash_row_num,
-                'surah': s[1],
-                'juz': get_juz(p),
-                'page': p,
-                'category': category,
-                'status': status,
-            })
+
+            # 🧠 NEW CORE ENGINE: The Dynamic Action Score + Unique ROW() ID
+            score_formula = f'=IF(H{dash_row_num}="🔴 Overdue", 100000, IF(H{dash_row_num}="Pending", 200000, IF(E{dash_row_num}="2 - Needs Revision", 300000, IF(H{dash_row_num}="🟡 Due Soon", 400000, IF(E{dash_row_num}="3 - Not Memorized", 500000, 999999))))) + ROW()'
+            worksheet.write_formula(row, 9, score_formula)
            
         current_excel_row += num_pages
        
@@ -380,35 +311,39 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     action_sheet = workbook.add_worksheet("Today's Action Plan")
     action_sheet.hide_gridlines(2)
    
-    action_sheet.set_column('A:B', 22)
-    action_sheet.set_column('C:C', 10)
-    action_sheet.set_column('D:D', 20)
-    action_sheet.set_column('E:F', 18, action_date_format)
-    action_sheet.set_column('G:G', 15)
+    # Hide helper columns A and B (Used for Rank and Score matching)
+    action_sheet.set_column('A:B', None, None, {'hidden': True})
+    action_sheet.set_column('C:D', 22)
+    action_sheet.set_column('E:E', 10)
+    action_sheet.set_column('F:F', 20)
+    action_sheet.set_column('G:H', 18, action_date_format)
+    action_sheet.set_column('I:I', 15)
    
-    action_sheet.write('A1', "🚀 High Priority Revision Goals", progress_format)
-    action_sheet.write('A2', "This page automatically filters out pages that are 'Good' or 'Not Started'. It only shows what needs attention today!")
+    action_sheet.write('C1', "🚀 Top 25 Next Actions Engine", progress_format)
+    action_sheet.write('C2', "This sheet uses a live ranking algorithm to dictate exactly what you should do next in order of priority.")
    
     action_headers = ['Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Due', 'Status']
     for col_num, data in enumerate(action_headers):
-        action_sheet.write(3, col_num, data, header_format)
+        action_sheet.write(3, col_num + 2, data, header_format)
        
-    action_sheet.write('A5', "📋 Today's Focus", fire_format)
-    relevant_rows = [row for row in dashboard_rows_data if row['status'] in {'🔴 Overdue', '🟡 Due Soon', 'Pending'}]
-    if not relevant_rows:
-        action_sheet.write('A6', "All caught up! 🎉")
-    else:
-        action_row = 5
-        for row_data in relevant_rows:
-            action_row += 1
-            dash_row = row_data['dash_row']
-            action_sheet.write_formula(action_row, 0, f"='Surah Dashboard'!B{dash_row}")
-            action_sheet.write_formula(action_row, 1, f"='Surah Dashboard'!C{dash_row}")
-            action_sheet.write_formula(action_row, 2, f"='Surah Dashboard'!D{dash_row}")
-            action_sheet.write_formula(action_row, 3, f"='Surah Dashboard'!E{dash_row}")
-            action_sheet.write_formula(action_row, 4, f"='Surah Dashboard'!F{dash_row}")
-            action_sheet.write_formula(action_row, 5, f"='Surah Dashboard'!G{dash_row}")
-            action_sheet.write_formula(action_row, 6, f"='Surah Dashboard'!H{dash_row}")
+    action_sheet.write('C5', "📋 Complete these top items first:", fire_format)
+    
+    # 🧠 INDEX MATCH LOOP: Pulls data dynamically based on the SMALL score without Array Formulas
+    for row in range(5, 30):
+        action_row = row + 1
+        
+        # Col A: Search Rank (1 through 25)
+        action_sheet.write_number(row, 0, row - 4)
+        
+        # Col B: Fetch the Nth smallest score from the Dashboard
+        action_sheet.write_formula(row, 1, f'=IFERROR(SMALL(\'Surah Dashboard\'!$J$6:$J${last_dash_row}, A{action_row}), "")')
+        
+        # Col C through I: Pull the matching Dashboard Data
+        dash_cols = ['B', 'C', 'D', 'E', 'F', 'G', 'H']
+        for idx, letter in enumerate(dash_cols):
+            target_col = idx + 2
+            formula = f'=IF(OR($B{action_row}="", $B{action_row}>=900000), "", INDEX(\'Surah Dashboard\'!{letter}$6:{letter}${last_dash_row}, MATCH($B{action_row}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)))'
+            action_sheet.write_formula(row, target_col, formula)
 
     # --- SHEET 3: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily_Log')
@@ -429,22 +364,13 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     log_sheet.set_column('I:J', None, None, {'hidden': True})
     log_sheet.set_column('AB:AE', None, None, {'hidden': True})
    
-   # 1 & 2. Dynamic Dropdown Source + Permanent Lookup Table
-    # Google Sheets will recalculate these formulas when the dashboard categories change.
     for i, s in enumerate(SURAH_DATA):
         surah_name = f"{s[0]}. {s[1]}"
-        
-        # AC Column: Static Master List of Names
         log_sheet.write_string(i, 28, surah_name)
-        # AD Column: Master Start Pg
         log_sheet.write_number(i, 29, s[2])
-        # AE Column: Master End Pg
         log_sheet.write_number(i, 30, s[3])
 
     for i, s in enumerate(SURAH_DATA):
-        surah_name = f"{s[0]}. {s[1]}"
-        start_page = s[2]
-        end_page = s[3]
         formula = (
             f'=IF(OR(COUNTIFS(\'Surah Dashboard\'!$D$6:$D${last_dash_row}, ">="&$AD{i+1}, '
             f'\'Surah Dashboard\'!$D$6:$D${last_dash_row}, "<="&$AE{i+1}, '
@@ -486,12 +412,9 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
            
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
         
-        # Point the Data Validation dropdown to the helper list in AB.
-        # This range is populated by formulas that recalculate when dashboard categories change.
         log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$AB$1:$AB$114', 'ignore_blank': True})
         log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': '=$AB$1:$AB$114', 'ignore_blank': True})
        
-        # Update the VLOOKUPs to pull Start and End pages from the new permanent master table (AC1:AE114)
         log_sheet.write_formula(row, 8, f'=IFERROR(IF(ISBLANK(E{row+1}), VLOOKUP(C{row+1}, $AC$1:$AE$114, 2, FALSE), E{row+1}), 0)')
         log_sheet.write_formula(row, 9, f'=IFERROR(IF(NOT(ISBLANK(F{row+1})), F{row+1}, IF(NOT(ISBLANK(D{row+1})), VLOOKUP(D{row+1}, $AC$1:$AE$114, 3, FALSE), IF(NOT(ISBLANK(E{row+1})), E{row+1}, VLOOKUP(C{row+1}, $AC$1:$AE$114, 3, FALSE)))), 0)')
        
