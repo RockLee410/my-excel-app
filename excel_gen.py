@@ -72,9 +72,7 @@ with st.expander("📖 How to use this Tracker (Start Here!)"):
    
     1. **Personalize & Generate:** Enter your name below, add the Surahs you have memorized to the correct categories, and click the blue 'Generate' button to download your tracker.
     2. **Upload to Google Sheets:** Go to [Google Sheets](https://sheets.google.com), open a new blank sheet, and go to **File > Import > Upload** to bring your tracker into the cloud.
-    3. **The 1-Second Setup Fix:** Because Google Sheets handles advanced formulas differently, you need to "activate" two specific cells after uploading:
-       * Go to the **Surah Dashboard** tab, double-click cell **G4** (Current Streak), delete the empty space at the very start, and hit **Enter**.
-       * Go to the **Today's Action Plan** tab, double-click cell **A6**, delete the empty space, and hit **Enter**.
+    3. **Automatic Refresh:** Once imported into Google Sheets, the dashboard formulas update automatically as you log your daily study and change categories in the tracker.
        
     *That's it! Every day, just log what you studied in the **Daily Log** tab, and your Dashboard and Action Plan will update automatically.*
     """)
@@ -227,16 +225,80 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C10001) & " Days"', fire_format)
     worksheet.write_formula('D4', '="⏱️ Total Time Spent: " & ROUND(SUM(Daily_Log!G2:G10001)/60, 1) & " Hours"', fire_format)
    
-    # The Patched Current Streak Hack Setup
-    worksheet.write('G3', "⚠️ GOOGLE SHEETS FIX: Dbl-click G4 below, delete the space, and hit Enter!", workbook.add_format({'font_color': '#D9534F', 'italic': True, 'bold': True}))
-    streak_formula = ' ="⚡ Current Streak: " & IF(TODAY() - MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$C$2:$C$10001, "<>") > 1, 0, IFERROR(MATCH(0, ARRAYFORMULA(COUNTIFS(Daily_Log!$A$2:$A$10001, MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$C$2:$C$10001, "<>") - SEQUENCE(365,1,0), Daily_Log!$C$2:$C$10001, "<>")), 0) - 1, 365)) & " Days"'
-    worksheet.write_string('G4', streak_formula)
+    worksheet.write('G3', "⚡ Current Streak", workbook.add_format({'bold': True}))
+    streak_formula = '="⚡ Current Streak: " & IF(TODAY() - MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$C$2:$C$10001, "<>") > 1, 0, IFERROR(MATCH(0, ARRAYFORMULA(COUNTIFS(Daily_Log!$A$2:$A$10001, MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$C$2:$C$10001, "<>") - SEQUENCE(365,1,0), Daily_Log!$C$2:$C$10001, "<>")), 0) - 1, 365)) & " Days"'
+    worksheet.write_formula('G4', streak_formula)
    
     headers = ['No.', 'Surah', 'Juz', 'Page', 'Category', 'Last Revised (Date)', 'Next Revision Due', 'Status', 'Notes']
     for col_num, data in enumerate(headers):
         worksheet.write(4, col_num, data, header_format)
 
+    history_data = st.session_state["history"]
     current_excel_row = 5
+    dashboard_rows_data = []
+
+    def get_last_revised_date_for_page(page_num, history_rows):
+        last_date = None
+        for entry in history_rows:
+            try:
+                entry_date = pd.to_datetime(entry.get('Date', ''), errors='coerce').date()
+            except Exception:
+                continue
+            if not entry_date:
+                continue
+
+            start_page = None
+            end_page = None
+
+            from_page = str(entry.get('From Page (Opt)', '')).strip()
+            to_page = str(entry.get('To Page (Opt)', '')).strip()
+            from_surah = str(entry.get('From Surah', '')).strip()
+            to_surah = str(entry.get('To Surah (Optional)', '')).strip()
+
+            if from_page:
+                start_page = int(float(from_page))
+            elif from_surah:
+                for surah in SURAH_DATA:
+                    if f"{surah[0]}. {surah[1]}" == from_surah:
+                        start_page = surah[2]
+                        break
+
+            if to_page:
+                end_page = int(float(to_page))
+            elif to_surah:
+                for surah in SURAH_DATA:
+                    if f"{surah[0]}. {surah[1]}" == to_surah:
+                        end_page = surah[3]
+                        break
+            elif start_page is not None and from_surah:
+                for surah in SURAH_DATA:
+                    if f"{surah[0]}. {surah[1]}" == from_surah:
+                        end_page = surah[3]
+                        break
+            elif start_page is not None:
+                end_page = start_page
+
+            if start_page is not None and end_page is not None and start_page <= page_num <= end_page:
+                if last_date is None or entry_date > last_date:
+                    last_date = entry_date
+
+        return last_date
+
+    def get_dashboard_status(category, page_num, history_rows):
+        if category == "3 - Not Memorized":
+            return "⚪ Not Started"
+
+        last_revised = get_last_revised_date_for_page(page_num, history_rows)
+        if not last_revised:
+            return "Pending"
+
+        next_due = last_revised + timedelta(days=14)
+        today = date.today()
+        if today > next_due:
+            return "🔴 Overdue"
+        if next_due - today <= timedelta(days=3):
+            return "🟡 Due Soon"
+        return "🟢 Good"
    
     for s in SURAH_DATA:
         surah_string = f"{s[0]}. {s[1]}"
@@ -256,6 +318,8 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
            
         for i, p in enumerate(pages):
             row = start_row + i
+            dash_row_num = row + 1
+            status = get_dashboard_status(category, p, history_data)
            
             if category == "3 - Not Memorized":
                 worksheet.set_row(row, None, None, {'hidden': True})
@@ -274,6 +338,14 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
             worksheet.write_formula(row, 7, g_formula, border_format)
            
             worksheet.write_blank(row, 8, None, border_format)
+            dashboard_rows_data.append({
+                'dash_row': dash_row_num,
+                'surah': s[1],
+                'juz': get_juz(p),
+                'page': p,
+                'category': category,
+                'status': status,
+            })
            
         current_excel_row += num_pages
        
@@ -321,8 +393,22 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     for col_num, data in enumerate(action_headers):
         action_sheet.write(3, col_num, data, header_format)
        
-    action_sheet.write('A5', "⚠️ GOOGLE SHEETS FIX: Double-click cell A6 below, delete the empty space at the very start, and hit Enter!", fire_format)
-    action_sheet.write_string('A6', ' =IFERROR(FILTER(\'Surah Dashboard\'!B6:H, ARRAYFORMULA(ISNUMBER(SEARCH("Due", \'Surah Dashboard\'!H6:H)))), "All caught up! 🎉")')
+    action_sheet.write('A5', "📋 Today's Focus", fire_format)
+    relevant_rows = [row for row in dashboard_rows_data if row['status'] in {'🔴 Overdue', '🟡 Due Soon', 'Pending'}]
+    if not relevant_rows:
+        action_sheet.write('A6', "All caught up! 🎉")
+    else:
+        action_row = 5
+        for row_data in relevant_rows:
+            action_row += 1
+            dash_row = row_data['dash_row']
+            action_sheet.write_formula(action_row, 0, f"='Surah Dashboard'!B{dash_row}")
+            action_sheet.write_formula(action_row, 1, f"='Surah Dashboard'!C{dash_row}")
+            action_sheet.write_formula(action_row, 2, f"='Surah Dashboard'!D{dash_row}")
+            action_sheet.write_formula(action_row, 3, f"='Surah Dashboard'!E{dash_row}")
+            action_sheet.write_formula(action_row, 4, f"='Surah Dashboard'!F{dash_row}")
+            action_sheet.write_formula(action_row, 5, f"='Surah Dashboard'!G{dash_row}")
+            action_sheet.write_formula(action_row, 6, f"='Surah Dashboard'!H{dash_row}")
 
     # --- SHEET 3: DAILY LOG ---
     log_sheet = workbook.add_worksheet('Daily_Log')
@@ -339,17 +425,36 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     for col_num, data in enumerate(log_headers):
         log_sheet.write(0, col_num, data, header_format)
        
+    # Hide the backend dynamic columns
     log_sheet.set_column('I:J', None, None, {'hidden': True})
-    log_sheet.set_column('AB:AD', None, None, {'hidden': True})
+    log_sheet.set_column('AB:AE', None, None, {'hidden': True})
    
-    active_surahs = [s for s in SURAH_DATA if f"{s[0]}. {s[1]}" in cat1_selections or f"{s[0]}. {s[1]}" in cat2_selections]
-    if not active_surahs: active_surahs = SURAH_DATA
-    num_active_surahs = len(active_surahs)
-   
-    for i, s in enumerate(active_surahs):
-        log_sheet.write_string(i, 27, f"{s[0]}- {s[1]}")
-        log_sheet.write_number(i, 28, s[2])              
-        log_sheet.write_number(i, 29, s[3])              
+   # 1 & 2. Dynamic Dropdown Source + Permanent Lookup Table
+    # Google Sheets will recalculate these formulas when the dashboard categories change.
+    for i, s in enumerate(SURAH_DATA):
+        surah_name = f"{s[0]}. {s[1]}"
+        
+        # AC Column: Static Master List of Names
+        log_sheet.write_string(i, 28, surah_name)
+        # AD Column: Master Start Pg
+        log_sheet.write_number(i, 29, s[2])
+        # AE Column: Master End Pg
+        log_sheet.write_number(i, 30, s[3])
+
+    for i, s in enumerate(SURAH_DATA):
+        surah_name = f"{s[0]}. {s[1]}"
+        start_page = s[2]
+        end_page = s[3]
+        formula = (
+            f'=IF(OR(COUNTIFS(\'Surah Dashboard\'!$D$6:$D${last_dash_row}, ">="&$AD{i+1}, '
+            f'\'Surah Dashboard\'!$D$6:$D${last_dash_row}, "<="&$AE{i+1}, '
+            f'\'Surah Dashboard\'!$E$6:$E${last_dash_row}, "1 - Confident")>0, '
+            f'COUNTIFS(\'Surah Dashboard\'!$D$6:$D${last_dash_row}, ">="&$AD{i+1}, '
+            f'\'Surah Dashboard\'!$D$6:$D${last_dash_row}, "<="&$AE{i+1}, '
+            f'\'Surah Dashboard\'!$E$6:$E${last_dash_row}, "2 - Needs Revision")>0), '
+            f'$AC{i+1}, "")'
+        )
+        log_sheet.write_formula(i, 27, formula)
        
     day_format = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'italic': True})
    
@@ -380,11 +485,15 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
             log_sheet.write_datetime(row, 0, current_date, date_format)
            
         log_sheet.write_formula(row, 1, f'=IF(ISBLANK(A{row+1}), "", TEXT(A{row+1}, "dddd"))', day_format)
-        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': f'=$AB$1:$AB${num_active_surahs}', 'ignore_blank': True})
-        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': f'=$AB$1:$AB${num_active_surahs}', 'ignore_blank': True})
+        
+        # Point the Data Validation dropdown to the helper list in AB.
+        # This range is populated by formulas that recalculate when dashboard categories change.
+        log_sheet.data_validation(row, 2, row, 2, {'validate': 'list', 'source': '=$AB$1:$AB$114', 'ignore_blank': True})
+        log_sheet.data_validation(row, 3, row, 3, {'validate': 'list', 'source': '=$AB$1:$AB$114', 'ignore_blank': True})
        
-        log_sheet.write_formula(row, 8, f'=IFERROR(IF(ISBLANK(E{row+1}), VLOOKUP(C{row+1}, $AB$1:$AD${num_active_surahs}, 2, FALSE), E{row+1}), 0)')
-        log_sheet.write_formula(row, 9, f'=IFERROR(IF(NOT(ISBLANK(F{row+1})), F{row+1}, IF(NOT(ISBLANK(D{row+1})), VLOOKUP(D{row+1}, $AB$1:$AD${num_active_surahs}, 3, FALSE), IF(NOT(ISBLANK(E{row+1})), E{row+1}, VLOOKUP(C{row+1}, $AB$1:$AD${num_active_surahs}, 3, FALSE)))), 0)')
+        # Update the VLOOKUPs to pull Start and End pages from the new permanent master table (AC1:AE114)
+        log_sheet.write_formula(row, 8, f'=IFERROR(IF(ISBLANK(E{row+1}), VLOOKUP(C{row+1}, $AC$1:$AE$114, 2, FALSE), E{row+1}), 0)')
+        log_sheet.write_formula(row, 9, f'=IFERROR(IF(NOT(ISBLANK(F{row+1})), F{row+1}, IF(NOT(ISBLANK(D{row+1})), VLOOKUP(D{row+1}, $AC$1:$AE$114, 3, FALSE), IF(NOT(ISBLANK(E{row+1})), E{row+1}, VLOOKUP(C{row+1}, $AC$1:$AE$114, 3, FALSE)))), 0)')
        
     workbook.close()
    
