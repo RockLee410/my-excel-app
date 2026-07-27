@@ -114,14 +114,14 @@ with st.sidebar:
         st.rerun()
     
     st.markdown("---")
-    page = st.radio("📌 Navigation", ["📊 Dashboard", "📝 Log Session", "🚀 Today's Action Plan", "📜 View History", "⚙️ Manage Categories"])
+    page = st.radio("📌 Navigation", ["📊 Dashboard", "📝 Log Session", "🚀 Today's Action Plan", "📜 View History", "⚙️ Manage Priorities"])
 
 # --- DATA FETCHING HELPERS ---
 def fetch_logs():
     res = supabase.table('daily_logs').select("*").eq("user_name", user_email).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-def fetch_categories():
+def fetch_priorities():
     res = supabase.table('surah_categories').select("*").eq("user_name", user_email).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
@@ -130,7 +130,7 @@ if page == "📊 Dashboard":
     st.title("📊 Progress Dashboard")
     
     df_logs = fetch_logs()
-    df_cats = fetch_categories()
+    df_priorities = fetch_priorities()
     
     # Calculate Metrics
     total_sessions = len(df_logs)
@@ -161,19 +161,19 @@ if page == "📊 Dashboard":
     
     st.markdown("---")
     
-    # Categories Pie Chart
+    # Priorities Pie Chart
     col_pie, col_chart = st.columns(2)
     with col_pie:
         st.subheader("📚 Memorization Status")
-        if df_cats.empty:
-            st.info("Assign Surahs in 'Manage Categories' to see your progress.")
+        if df_priorities.empty:
+            st.info("Assign Surahs in 'Manage Priorities' to see your progress.")
         else:
-            cat_counts = df_cats['category'].value_counts().reset_index()
-            cat_counts.columns = ['Category', 'Count']
+            cat_counts = df_priorities['category'].value_counts().reset_index()
+            cat_counts.columns = ['Priority', 'Count']
             chart = alt.Chart(cat_counts).mark_arc().encode(
                 theta="Count",
-                color=alt.Color("Category", scale=alt.Scale(domain=["1 - Confident", "2 - Needs Revision"], range=["#2E7D32", "#F57F17"])),
-                tooltip=["Category", "Count"]
+                color=alt.Color("Priority", scale=alt.Scale(domain=["1 - Confident", "2 - Needs Revision"], range=["#2E7D32", "#F57F17"])),
+                tooltip=["Priority", "Count"]
             ).properties(width=300, height=300)
             st.altair_chart(chart, use_container_width=True)
 
@@ -224,13 +224,13 @@ elif page == "📝 Log Session":
 # --- PAGE 3: TODAY'S ACTION PLAN ---
 elif page == "🚀 Today's Action Plan":
     st.title("🚀 Today's Action Plan")
-    st.write("This engine scans your active categories and cross-references your history to find what is due for a 14-day revision.")
+    st.write("This engine scans your active priorities and cross-references your history to find what is due for a 14-day revision.")
     
-    df_cats = fetch_categories()
+    df_priorities = fetch_priorities()
     df_logs = fetch_logs()
     
-    if df_cats.empty:
-        st.warning("You haven't added any Surahs to your categories yet. Go to 'Manage Categories' first!")
+    if df_priorities.empty:
+        st.warning("You haven't added any Surahs to your priorities yet. Go to 'Manage Priorities' first!")
     elif df_logs.empty:
         st.info("You haven't logged any sessions yet! Log your first session to trigger the algorithm.")
     else:
@@ -238,7 +238,7 @@ elif page == "🚀 Today's Action Plan":
         due_list = []
         df_logs['log_date'] = pd.to_datetime(df_logs['log_date']).dt.date
         
-        for _, row in df_cats.iterrows():
+        for _, row in df_priorities.iterrows():
             surah_str = f"{row['surah_number']}. {row['surah_name']}"
             
             # Find all logs that mention this Surah
@@ -262,7 +262,7 @@ elif page == "🚀 Today's Action Plan":
             if status != "🟢 Good":
                 due_list.append({
                     "Surah": surah_str,
-                    "Category": row['category'],
+                    "Priority": row['category'],
                     "Last Revised": str(last_revised),
                     "Status": status
                 })
@@ -283,28 +283,28 @@ elif page == "📜 View History":
         display_df = df_logs[['log_date', 'from_surah', 'to_surah', 'from_page', 'to_page', 'minutes', 'notes']]
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-# --- PAGE 5: MANAGE CATEGORIES ---
-elif page == "⚙️ Manage Categories":
-    st.title("🗂️ Manage Surah Categories")
-    st.write("Assign your Surahs to categories so the Action Plan knows what to test you on.")
+# --- PAGE 5: MANAGE PRIORITIES ---
+elif page == "⚙️ Manage Priorities":
+    st.title("🗂️ Manage Surah Priorities")
+    st.write("Assign your Surahs to priorities so the Action Plan knows what to test you on.")
     
-    # Get current saved categories from DB
-    df_cats = fetch_categories()
+    # Get current saved priorities from DB
+    df_priorities = fetch_priorities()
     saved_cat1, saved_cat2 = [], []
     
-    if not df_cats.empty:
-        saved_cat1 = [f"{r['surah_number']}. {r['surah_name']}" for _, r in df_cats[df_cats['category'] == '1 - Confident'].iterrows()]
-        saved_cat2 = [f"{r['surah_number']}. {r['surah_name']}" for _, r in df_cats[df_cats['category'] == '2 - Needs Revision'].iterrows()]
+    if not df_priorities.empty:
+        saved_cat1 = [f"{r['surah_number']}. {r['surah_name']}" for _, r in df_priorities[df_priorities['category'] == '1 - Confident'].iterrows()]
+        saved_cat2 = [f"{r['surah_number']}. {r['surah_name']}" for _, r in df_priorities[df_priorities['category'] == '2 - Needs Revision'].iterrows()]
 
-    with st.form("category_form"):
-        new_cat1 = st.multiselect("🟢 Category 1: Memorized with Confidence", options=surah_options, default=saved_cat1)
-        new_cat2 = st.multiselect("🟡 Category 2: Needs Revision", options=surah_options, default=saved_cat2)
+    with st.form("priority_form"):
+        new_cat1 = st.multiselect("🟢 Priority 1: Memorized with Confidence", options=surah_options, default=saved_cat1)
+        new_cat2 = st.multiselect("🟡 Priority 2: Needs Revision", options=surah_options, default=saved_cat2)
         
-        if st.form_submit_button("Update Categories"):
+        if st.form_submit_button("Update Priorities"):
             # Prevent overlap
             overlap = set(new_cat1).intersection(set(new_cat2))
             if overlap:
-                st.error(f"A Surah cannot be in both categories! Conflicting: {', '.join(overlap)}")
+                st.error(f"A Surah cannot be in both priorities! Conflicting: {', '.join(overlap)}")
             else:
                 # Wipe old categories and insert new ones
                 supabase.table('surah_categories').delete().eq('user_name', user_email).execute()
@@ -320,5 +320,5 @@ elif page == "⚙️ Manage Categories":
                 if inserts:
                     supabase.table('surah_categories').insert(inserts).execute()
                 
-                st.success("✅ Categories updated successfully!")
+                st.success("✅ Priorities updated successfully!")
                 st.rerun()

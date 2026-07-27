@@ -70,9 +70,9 @@ with st.expander("📖 How to use this Tracker (Start Here!)"):
     st.markdown("""
     **Welcome to your automated Quran revision dashboard!** Here is how to set it up in 3 easy steps:
    
-    1. **Personalize & Generate:** Enter your name below, add the Surahs you have memorized to the correct categories, and click the blue 'Generate' button to download your tracker.
+    1. **Personalize & Generate:** Enter your name below, add the Surahs you have memorized to the correct priorities, and click the blue 'Generate' button to download your tracker.
     2. **Upload to Google Sheets:** Go to [Google Sheets](https://sheets.google.com), open a new blank sheet, and go to **File > Import > Upload** to bring your tracker into the cloud.
-    3. **Automatic Refresh:** Once imported into Google Sheets, the dashboard formulas update automatically as you log your daily study and change categories in the tracker.
+    3. **Automatic Refresh:** Once imported into Google Sheets, the dashboard formulas update automatically as you log your daily study and change priorities in the tracker.
        
     *That's it! Every day, just log what you studied in the **Daily Log** tab, and your Dashboard and Action Plan will update automatically.*
     """)
@@ -90,10 +90,10 @@ if uploaded_file is not None and "file_loaded" not in st.session_state:
        
         st.session_state["history"] = df_log.to_dict('records')
        
-        # Smart Category Extraction
-        if 'Surah' in df_dash.columns and 'Category' in df_dash.columns:
-            cat1_surahs = df_dash[df_dash['Category'] == '1 - Confident']['Surah'].dropna().unique()
-            cat2_surahs = df_dash[df_dash['Category'] == '2 - Needs Revision']['Surah'].dropna().unique()
+        # Smart Priority Extraction
+        if 'Surah' in df_dash.columns and 'Priority' in df_dash.columns:
+            cat1_surahs = df_dash[df_dash['Priority'] == '1 - Confident']['Surah'].dropna().unique()
+            cat2_surahs = df_dash[df_dash['Priority'] == '2 - Needs Revision']['Surah'].dropna().unique()
            
             c1_list, c2_list = [], []
             for s in SURAH_DATA:
@@ -127,59 +127,59 @@ if st.session_state["history"]:
     st.markdown("---")
 
 # --- GENERATOR SETTINGS ---
-def remove_category_overlap(changed_category):
-    other_category = "cat2" if changed_category == "cat1" else "cat1"
-    st.session_state[other_category] = [
-        surah for surah in st.session_state[other_category]
-        if surah not in st.session_state[changed_category]
+def remove_priority_overlap(changed_priority):
+    other_priority = "cat2" if changed_priority == "cat1" else "cat1"
+    st.session_state[other_priority] = [
+        surah for surah in st.session_state[other_priority]
+        if surah not in st.session_state[changed_priority]
     ]
 
-def add_to_category(category, surahs):
-    existing = st.session_state[category]
-    st.session_state[category] = existing + [surah for surah in surahs if surah not in existing]
-    remove_category_overlap(category)
+def add_to_priority(priority_key, surahs):
+    existing = st.session_state[priority_key]
+    st.session_state[priority_key] = existing + [surah for surah in surahs if surah not in existing]
+    remove_priority_overlap(priority_key)
 
 def add_juz_30():
-    add_to_category("cat1", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78])
+    add_to_priority("cat1", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78])
 
 def add_juz_29():
-    add_to_category("cat1", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
+    add_to_priority("cat1", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
 
 def add_juz_30_cat2():
-    add_to_category("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78])
+    add_to_priority("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[0] >= 78])
 
 def add_juz_29_cat2():
-    add_to_category("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
+    add_to_priority("cat2", [f"{s[0]}. {s[1]}" for s in SURAH_DATA if 67 <= s[0] <= 77])
 
 
 st.markdown("### 👤 1. Personalize Your Tracker")
 user_name = st.text_input("What is your name?", "My")
 
-st.markdown("### 🗂️ 2. Manage Categorized Surahs")
+st.markdown("### 🗂️ 2. Manage Prioritized Surahs")
 
 col1, col2 = st.columns(2)
 with col1:
-    st.button("⚡ Quick Add: Juz 30 to Category 1", on_click=add_juz_30)
+    st.button("⚡ Quick Add: Juz 30 to Priority 1", on_click=add_juz_30)
 with col2:
-    st.button("⚡ Quick Add: Juz 29 to Category 1", on_click=add_juz_29)
+    st.button("⚡ Quick Add: Juz 29 to Priority 1", on_click=add_juz_29)
 cat1_selections = st.multiselect(
-    "🟢 Category 1: Memorized with Confidence",
+    "🟢 Priority 1: Memorized with Confidence",
     options=surah_options,
     key="cat1",
-    on_change=remove_category_overlap,
+    on_change=remove_priority_overlap,
     args=("cat1",),
 )
 
 col3, col4 = st.columns(2)
 with col3:
-    st.button("⚡ Quick Add: Juz 30 to Category 2", on_click=add_juz_30_cat2)
+    st.button("⚡ Quick Add: Juz 30 to Priority 2", on_click=add_juz_30_cat2)
 with col4:
-    st.button("⚡ Quick Add: Juz 29 to Category 2", on_click=add_juz_29_cat2)
+    st.button("⚡ Quick Add: Juz 29 to Priority 2", on_click=add_juz_29_cat2)
 cat2_selections = st.multiselect(
-    "🟡 Category 2: Needs Revision",
+    "🟡 Priority 2: Needs Revision",
     options=surah_options,
     key="cat2",
-    on_change=remove_category_overlap,
+    on_change=remove_priority_overlap,
     args=("cat2",),
 )
 
@@ -221,7 +221,7 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     worksheet.set_column('I:I', 20)
     worksheet.set_column('L:M', 20)
 
-    worksheet.write('A1', "Rule: Category 1 & 2 Pages must be revised every 14 days.")
+    worksheet.write('A1', "Rule: Priority 1 & 2 Pages must be revised every 14 days.")
     worksheet.write_formula('A4', '="🔥 Total Days Logged: " & COUNTA(Daily_Log!C2:C10001) & " Days"', fire_format)
     worksheet.write_formula('D4', '="⏱️ Total Time Spent: " & ROUND(SUM(Daily_Log!G2:G10001)/60, 1) & " Hours"', fire_format)
    
@@ -229,7 +229,7 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     streak_formula = '="⚡ Current Streak: " & IF(TODAY() - MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$C$2:$C$10001, "<>") > 1, 0, IFERROR(MATCH(0, ARRAYFORMULA(COUNTIFS(Daily_Log!$A$2:$A$10001, MAXIFS(Daily_Log!$A$2:$A$10001, Daily_Log!$C$2:$C$10001, "<>") - SEQUENCE(365,1,0), Daily_Log!$C$2:$C$10001, "<>")), 0) - 1, 365)) & " Days"'
     worksheet.write_formula('G4', streak_formula)
    
-    headers = ['No.', 'Surah', 'Juz', 'Page', 'Category', 'Last Revised (Date)', 'Next Revision Due', 'Status', 'Notes']
+    headers = ['No.', 'Surah', 'Juz', 'Page', 'Priority', 'Last Revised (Date)', 'Next Revision Due', 'Status', 'Notes']
     for col_num, data in enumerate(headers):
         worksheet.write(4, col_num, data, header_format)
 
@@ -362,7 +362,7 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     worksheet.conditional_format(f'H6:H{last_dash_row}', {'type': 'cell', 'criteria': '==', 'value': '"🟢 Good"', 'format': green_bg})
 
     # Summary Table
-    worksheet.write('L1', 'Category', header_format)
+    worksheet.write('L1', 'Priority', header_format)
     worksheet.write('M1', 'Total Pages', header_format)
     worksheet.write('L2', '1 - Confident')
     worksheet.write_formula('M2', f'=COUNTIF($E$6:$E${last_dash_row}, "1 - Confident")')
@@ -389,7 +389,7 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     action_sheet.write('A1', "🚀 High Priority Revision Goals", progress_format)
     action_sheet.write('A2', "This page automatically filters out pages that are 'Good' or 'Not Started'. It only shows what needs attention today!")
    
-    action_headers = ['Surah', 'Juz', 'Page', 'Category', 'Last Revised', 'Next Due', 'Status']
+    action_headers = ['Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Due', 'Status']
     for col_num, data in enumerate(action_headers):
         action_sheet.write(3, col_num, data, header_format)
        
