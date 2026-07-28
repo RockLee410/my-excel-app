@@ -12,4 +12,4 @@ if not exist ".venv\Scripts\python.exe" (
 .
 .venv\Scripts\python.exe -m pip install -r requirements.txt >nul 2>&1
 .
-.venv\Scripts\python.exe -m streamlit run app.py
+.venv\Scripts\python.exe -m streamlit run excel_gen.py

@@ -24,4 +24,4 @@ if (-not (Test-Path $pythonExe)) {
 
 & $pythonExe -m pip install --upgrade pip setuptools wheel | Out-Null
 & $pythonExe -m pip install -r requirements.txt | Out-Null
-& $pythonExe -m streamlit run app.py
+& $pythonExe -m streamlit run excel_gen.py
