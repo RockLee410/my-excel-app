@@ -479,7 +479,7 @@ if page == "📊 Dashboard":
     else:
         st.success("🎉 **NEXT ON TO-DO LIST:** All caught up! No pages are due for revision.")
     # --------------------------------
-    
+
     total_sessions = len(df_logs)
     total_hours = round(df_logs['minutes'].sum() / 60, 1) if not df_logs.empty else 0
 
@@ -534,8 +534,40 @@ if page == "📊 Dashboard":
                 recent_logs = df_logs.copy()
                 recent_logs['log_date'] = pd.to_datetime(recent_logs['log_date']).dt.date
                 recent_logs = recent_logs[recent_logs['log_date'] >= last_14]
+                
                 if not recent_logs.empty:
-                    daily_counts = recent_logs.groupby('log_date').size().reset_index(name='Sessions')
+                    # Calculate total pages read for each log entry
+                    pages_read_list = []
+                    for _, log in recent_logs.iterrows():
+                        f_p = log.get('from_page')
+                        t_p = log.get('to_page')
+                        
+                        from_surah_str = str(log.get('from_surah') or '').strip()
+                        to_surah_str = str(log.get('to_surah') or '').strip() or from_surah_str
+                        
+                        f_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == from_surah_str]
+                        t_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == to_surah_str]
+
+                        if pd.isna(f_p) or f_p == 0:
+                            if f_match: f_p = f_match[0][2]
+                        
+                        if pd.isna(t_p) or t_p == 0:
+                            if t_match: t_p = t_match[0][3]
+                            elif f_match: t_p = f_match[0][3]
+                            else: t_p = f_p
+                            
+                        # Calculate the spread (adding 1 to include both start and end pages)
+                        if pd.notna(f_p) and pd.notna(t_p) and f_p > 0:
+                            pages = abs(int(t_p) - int(f_p)) + 1
+                        else:
+                            pages = 0
+                            
+                        pages_read_list.append(pages)
+                        
+                    recent_logs['Pages Read'] = pages_read_list
+                    
+                    # Group by date and sum up the pages read
+                    daily_counts = recent_logs.groupby('log_date')['Pages Read'].sum().reset_index()
                     st.line_chart(daily_counts.set_index('log_date'))
                 else:
                     st.write("No logs in the last 14 days.")
