@@ -60,12 +60,8 @@ st.set_page_config(page_title="Quran Tracker Cloud", layout="wide", initial_side
 if "sidebar_nav" not in st.session_state:
     st.session_state.sidebar_nav = "📊 Dashboard"
 
-# NEW: Start the Cookie Manager
-@st.cache_resource
-def get_cookie_manager():
-    return stx.CookieManager()
-
-cookie_manager = get_cookie_manager()
+# NEW: Start the Cookie Manager (Uncached)
+cookie_manager = stx.CookieManager(key="quran_tracker_cookies")
 
 # --- INITIALIZE DATABASE CONNECTION ---
 @st.cache_resource
