@@ -192,21 +192,41 @@ def build_dashboard_rows(df_logs, df_priorities):
         logs['log_date'] = pd.to_datetime(logs['log_date']).dt.date
         for _, log in logs.iterrows():
             log_date = log['log_date']
+            
+            # Extract raw page numbers
             f_p = log.get('from_page')
-            t_p = log.get('to_page') if pd.notna(log.get('to_page')) and log.get('to_page') > 0 else f_p
+            t_p = log.get('to_page')
+            
+            # Extract surah names to find fallbacks
+            from_surah_str = str(log.get('from_surah') or '').strip()
+            to_surah_str = str(log.get('to_surah') or '').strip() or from_surah_str
+            
+            f_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == from_surah_str]
+            t_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == to_surah_str]
 
+            # 1. If from_page is missing, grab the start page of the from_surah
             if pd.isna(f_p) or f_p == 0:
-                from_surah = str(log.get('from_surah') or '').strip()
-                to_surah = str(log.get('to_surah') or '').strip() or from_surah
-                f_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == from_surah]
-                t_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == to_surah]
-                if f_match: f_p = f_match[0][2]
-                if t_match: t_p = t_match[0][3]
-                elif f_match: t_p = f_match[0][3]
+                if f_match:
+                    f_p = f_match[0][2]
+            
+            # 2. If to_page is missing, grab the end page of the to_surah
+            if pd.isna(t_p) or t_p == 0:
+                if t_match:
+                    t_p = t_match[0][3]
+                elif f_match:
+                    t_p = f_match[0][3]
+                else:
+                    t_p = f_p # Ultimate fallback if literally everything is blank
 
+            # 3. Apply the date to the calculated page range
             if pd.notna(f_p) and f_p > 0:
                 f_p, t_p = int(f_p), int(t_p)
-                for p in range(f_p, t_p + 1):
+                
+                # Safety catch: Ensure the loop always runs forward
+                start_page = min(f_p, t_p)
+                end_page = max(f_p, t_p)
+                
+                for p in range(start_page, end_page + 1):
                     if 1 <= p <= 604:
                         if page_last_revised[p] is None or log_date > page_last_revised[p]:
                             page_last_revised[p] = log_date
