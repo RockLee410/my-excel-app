@@ -3,6 +3,7 @@ import pandas as pd
 from supabase import create_client, Client
 from datetime import date, timedelta
 import altair as alt
+import extra_streamlit_components as stx
 
 # --- DATA: Fully Expanded 114 Surahs ---
 SURAH_DATA = [
@@ -59,6 +60,13 @@ st.set_page_config(page_title="Quran Tracker Cloud", layout="wide", initial_side
 if "sidebar_nav" not in st.session_state:
     st.session_state.sidebar_nav = "📊 Dashboard"
 
+# NEW: Start the Cookie Manager
+@st.cache_resource
+def get_cookie_manager():
+    return stx.CookieManager()
+
+cookie_manager = get_cookie_manager()
+
 # --- INITIALIZE DATABASE CONNECTION ---
 @st.cache_resource
 def init_connection():
@@ -74,6 +82,22 @@ except Exception:
 if "user" not in st.session_state:
     st.session_state["user"] = None
 
+# NEW: Try to Auto-Login using Cookies
+qt_access = cookie_manager.get("qt_access")
+qt_refresh = cookie_manager.get("qt_refresh")
+
+if st.session_state["user"] is None and qt_refresh:
+    try:
+        # Restore session using Supabase tokens
+        res = supabase.auth.set_session(qt_access, qt_refresh)
+        st.session_state["user"] = res.user
+        
+        # Refresh the cookies to keep them alive for another 30 days
+        cookie_manager.set("qt_access", res.session.access_token, max_age=30*24*60*60)
+        cookie_manager.set("qt_refresh", res.session.refresh_token, max_age=30*24*60*60)
+    except Exception:
+        pass # Tokens expired or invalid, let them log in normally
+
 def render_login():
     st.title("🔐 Login to Quran Tracker")
     tab1, tab2 = st.tabs(["Login", "Sign Up"])
@@ -85,6 +109,11 @@ def render_login():
             try:
                 response = supabase.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state["user"] = response.user
+
+                # NEW: Save secure tokens to cookies for 30 days
+                cookie_manager.set("qt_access", response.session.access_token, max_age=30*24*60*60)
+                cookie_manager.set("qt_refresh", response.session.refresh_token, max_age=30*24*60*60)
+
                 st.rerun()
             except Exception:
                 st.error("Login failed. Check your credentials.")
@@ -440,6 +469,11 @@ with st.sidebar:
     st.write(f"👤 Logged in as: **{user_email.split('@')[0]}**")
     if st.button("Logout"):
         supabase.auth.sign_out()
+
+        # NEW: Destroy cookies on manual logout
+        cookie_manager.delete("qt_access")
+        cookie_manager.delete("qt_refresh")
+
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state["user"] = None
