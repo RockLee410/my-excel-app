@@ -470,7 +470,16 @@ if page == "📊 Dashboard":
     st.markdown(f"### 🏆 Memorization Progress: {int(progress_pct * 100)}%")
     st.progress(progress_pct, text=f"{total_confident} out of 604 pages confidently memorized")
     st.markdown("---")
-
+    
+    # --- NEW: NEXT ON TO-DO LIST ---
+    df_actions = df_dashboard[df_dashboard['Status'] != '🟢 Good'].copy()
+    if not df_actions.empty:
+        top_action = df_actions.sort_values('Score').iloc[0]
+        st.info(f"🎯 **NEXT ON TO-DO LIST:** {top_action['Surah']} (Page {top_action['Page']})")
+    else:
+        st.success("🎉 **NEXT ON TO-DO LIST:** All caught up! No pages are due for revision.")
+    # --------------------------------
+    
     total_sessions = len(df_logs)
     total_hours = round(df_logs['minutes'].sum() / 60, 1) if not df_logs.empty else 0
 
