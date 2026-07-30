@@ -58,40 +58,43 @@ def get_juz(page_num):
 
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="Quran Tracker Cloud", layout="wide", initial_sidebar_state="expanded")
-# --- NEW: PWA (NATIVE APP) CONFIGURATION ---
+# --- NEW: AGGRESSIVE PWA (NATIVE APP) CONFIGURATION ---
 pwa_setup = """
 <script>
     if (window.parent) {
-        // 1. Tell Apple devices this is a native web app
-        var apple_capable = window.parent.document.createElement('meta');
-        apple_capable.name = 'apple-mobile-web-app-capable';
-        apple_capable.content = 'yes';
-        window.parent.document.head.appendChild(apple_capable);
+        var doc = window.parent.document;
 
-        var apple_status_bar = window.parent.document.createElement('meta');
-        apple_status_bar.name = 'apple-mobile-web-app-status-bar-style';
-        apple_status_bar.content = 'default';
-        window.parent.document.head.appendChild(apple_status_bar);
+        // 1. Hunt down and remove Streamlit's default manifest
+        var oldManifest = doc.querySelector('link[rel="manifest"]');
+        if (oldManifest) { oldManifest.remove(); }
 
-        var apple_title = window.parent.document.createElement('meta');
-        apple_title.name = 'apple-mobile-web-app-title';
-        apple_title.content = 'Quran Tracker';
-        window.parent.document.head.appendChild(apple_title);
+        // 2. Hunt down and remove Streamlit's Apple title
+        var oldAppleTitle = doc.querySelector('meta[name="apple-mobile-web-app-title"]');
+        if (oldAppleTitle) { oldAppleTitle.remove(); }
 
-        // 2. Add the JSON Manifest for Android & general PWA installation
-        var manifest = window.parent.document.createElement('link');
+        // 3. Force Apple to use our App Name
+        var appleTitle = doc.createElement('meta');
+        appleTitle.name = 'apple-mobile-web-app-title';
+        appleTitle.content = 'Quran Tracker';
+        doc.head.appendChild(appleTitle);
+
+        var appleCapable = doc.createElement('meta');
+        appleCapable.name = 'apple-mobile-web-app-capable';
+        appleCapable.content = 'yes';
+        doc.head.appendChild(appleCapable);
+
+        // 4. Inject our custom JSON Manifest
+        var manifest = doc.createElement('link');
         manifest.rel = 'manifest';
-        // We encode the app rules in a raw data string
         manifest.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify({
-            "name": "Quran Tracker Cloud",
+            "name": "Quran Tracker",
             "short_name": "Quran Tracker",
             "start_url": "/",
             "display": "standalone",
             "background_color": "#ffffff",
-            "theme_color": "#10b981",
-            "icons": [] 
+            "theme_color": "#10b981"
         }));
-        window.parent.document.head.appendChild(manifest);
+        doc.head.appendChild(manifest);
     }
 </script>
 """
