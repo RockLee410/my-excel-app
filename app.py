@@ -332,7 +332,50 @@ def render_priority_manager(onboarding=False):
     else:
         st.title("🗂️ Manage Surah Priorities")
         st.write("Use the tools below to quickly update your active priorities.")
-
+    # --- NEW: CURRENT SETUP VIEWER ---
+    st.markdown("#### 📊 Current Setup")
+    
+    # Build the current status logic
+    priority_lookup = {}
+    if not df_priorities.empty:
+        for _, row in df_priorities.iterrows():
+            priority_lookup[row['surah_name']] = row['category']
+            
+    setup_rows = []
+    for s in SURAH_DATA:
+        surah_name = s[1]
+        base_priority = priority_lookup.get(surah_name, "3 - Not Memorized")
+        
+        # Check if there are page-level overrides causing mixed priorities
+        page_priorities = set()
+        for p in range(s[2], s[3] + 1):
+            override = get_page_priority(surah_name, p)
+            page_priorities.add(override if override else base_priority)
+        
+        if len(page_priorities) == 1:
+            display_pri = list(page_priorities)[0]
+        else:
+            display_pri = "🔄 Mixed (Page-level overrides)"
+            
+        setup_rows.append({
+            "No.": s[0],
+            "Surah": s[1],
+            "Current Priority": display_pri
+        })
+        
+    # Display as a clean, fixed-height scrollable table to prevent UI clutter
+    st.dataframe(
+        pd.DataFrame(setup_rows), 
+        use_container_width=True, 
+        hide_index=True, 
+        height=250,  # Keeps it compact
+        column_config={
+            "No.": st.column_config.NumberColumn("No.", width="small"),
+            "Surah": st.column_config.TextColumn("Surah", width="medium"),
+            "Current Priority": st.column_config.TextColumn("Priority Level")
+        }
+    )
+    st.markdown("---")
     # --- QUICK ADD JUZ SECTION ---
     def apply_juz_priority(start_surah, end_surah, priority):
         for s in SURAH_DATA:
