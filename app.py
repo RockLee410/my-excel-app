@@ -89,10 +89,10 @@ if st.session_state["user"] is None and qt_refresh:
         res = supabase.auth.set_session(qt_access, qt_refresh)
         st.session_state["user"] = res.user
         
-        # FIXED: Use expires_at with the datetime object
+        # FIXED: Add unique keys to avoid Streamlit duplicate errors
         expire_date = datetime.now() + timedelta(days=30)
-        cookie_manager.set("qt_access", res.session.access_token, expires_at=expire_date)
-        cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date)
+        cookie_manager.set("qt_access", res.session.access_token, expires_at=expire_date, key="set_access_auto")
+        cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date, key="set_refresh_auto")
     except Exception:
         pass
 
@@ -108,12 +108,12 @@ def render_login():
                 response = supabase.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state["user"] = response.user
 
-                # FIXED: Use expires_at with the datetime object
+                # FIXED: Add unique keys to avoid Streamlit duplicate errors
                 expire_date = datetime.now() + timedelta(days=30)
-                cookie_manager.set("qt_access", response.session.access_token, expires_at=expire_date)
-                cookie_manager.set("qt_refresh", response.session.refresh_token, expires_at=expire_date)
+                cookie_manager.set("qt_access", response.session.access_token, expires_at=expire_date, key="set_access_login")
+                cookie_manager.set("qt_refresh", response.session.refresh_token, expires_at=expire_date, key="set_refresh_login")
 
-                # Give the browser a half-second to physically save the cookies before reloading!
+                # Give the browser a half-second to physically save the cookies before reloading
                 time.sleep(0.5)
                 st.rerun()
             except Exception as e:
