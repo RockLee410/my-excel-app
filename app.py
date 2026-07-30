@@ -404,17 +404,17 @@ def render_priority_manager(onboarding=False):
     st.markdown("#### ⚡ Quick Adds")
     q_col1, q_col2 = st.columns(2)
     with q_col1:
-        if st.button("🟢 Set Juz 30 to Priority 1", use_container_width=True):
+        if st.button("🟢 Set Juz 30 to Priority 1 - Confident", use_container_width=True):
             apply_juz_priority(78, 114, "1 - Confident")
             st.toast("✅ Juz 30 updated! Remember to click Save below.")
-        if st.button("🟢 Set Juz 29 to Priority 1", use_container_width=True):
+        if st.button("🟢 Set Juz 29 to Priority 1 - Confident", use_container_width=True):
             apply_juz_priority(67, 77, "1 - Confident")
             st.toast("✅ Juz 29 updated! Remember to click Save below.")
     with q_col2:
-        if st.button("🟡 Set Juz 30 to Priority 2", use_container_width=True):
+        if st.button("🟡 Set Juz 30 to Priority 2 - Needs Revision", use_container_width=True):
             apply_juz_priority(78, 114, "2 - Needs Revision")
             st.toast("✅ Juz 30 updated! Remember to click Save below.")
-        if st.button("🟡 Set Juz 29 to Priority 2", use_container_width=True):
+        if st.button("🟡 Set Juz 29 to Priority 2 - Needs Revision", use_container_width=True):
             apply_juz_priority(67, 77, "2 - Needs Revision")
             st.toast("✅ Juz 29 updated! Remember to click Save below.")
             
