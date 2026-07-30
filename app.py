@@ -548,6 +548,8 @@ if page == "📊 Dashboard":
         def upgrade_single_page(target_priority):
             set_page_priority(surah_name, page_val, target_priority)
             instant_db_save()
+            # NEW: Clean toast notification that doesn't shift the screen
+            st.toast(f"✅ Page {page_val} upgraded to {target_priority.split(' - ')[1]}!")
 
         # Callback for a full Surah upgrade
         def upgrade_full_surah(target_priority):
@@ -559,8 +561,10 @@ if page == "📊 Dashboard":
                     # Use surah_record[1] which guarantees the exact pure name
                     set_page_priority(surah_record[1], p, target_priority)
                 instant_db_save()
+                # NEW: Clean toast notification for full Surah upgrades
+                st.toast(f"✅ {surah_str} upgraded to {target_priority.split(' - ')[1]}!")
             else:
-                st.error("Could not find the Surah in the database.")
+                st.toast("❌ Could not find the Surah in the database.")
 
         # Render the contextual buttons
         if current_cat == "2 - Needs Revision":
@@ -752,7 +756,7 @@ elif page == "📝 Log Session":
                 }
                 supabase.table('daily_logs').insert(new_log).execute()
                 
-                st.success("✅ Log saved successfully!")
+                st.toast("✅ Log saved successfully!")
                 st.balloons()
 
 # --- PAGE 3: Next on The To-Do List  ---
