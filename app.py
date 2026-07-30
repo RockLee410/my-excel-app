@@ -523,6 +523,54 @@ if page == "📊 Dashboard":
     if not df_actions.empty:
         top_action = df_actions.sort_values('Score').iloc[0]
         st.info(f"🎯 **NEXT ON TO-DO LIST:** {top_action['Surah']} (Page {top_action['Page']})")
+        
+        # --- QUICK PRIORITY UPGRADE BUTTONS ---
+        current_cat = top_action['Priority']
+        surah_str = top_action['Surah']
+        surah_name = surah_str.split('. ', 1)[1]
+        page_val = int(top_action['Page'])
+        
+        # Helper function to instantly save changes to the cloud
+        def instant_db_save():
+            state = get_page_priority_state()
+            try:
+                supabase.table('page_priorities').delete().eq('user_name', user_email).execute()
+                inserts = [{"user_name": user_email, "surah_name": k.split("::")[0], "page_number": int(k.split("::")[1]), "category": cat} for k, cat in state.items()]
+                if inserts:
+                    supabase.table('page_priorities').insert(inserts).execute()
+            except Exception as e:
+                st.error(f"Failed to save to cloud: {e}")
+
+        # Callback for a single page upgrade
+        def upgrade_single_page(target_priority):
+            set_page_priority(surah_name, page_val, target_priority)
+            instant_db_save()
+
+        # Callback for a full Surah upgrade
+        def upgrade_full_surah(target_priority):
+            surah_record = next(s for s in SURAH_DATA if s[1] == surah_name)
+            for p in range(surah_record[2], surah_record[3] + 1):
+                set_page_priority(surah_name, p, target_priority)
+            instant_db_save()
+
+        # Render the contextual buttons
+        if current_cat == "2 - Needs Revision":
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                st.button(f"🟢 I am confident of Surah {surah_str}", on_click=upgrade_full_surah, args=("1 - Confident",), use_container_width=True)
+            with col_b2:
+                # FIXED: Updated wording for Button 2
+                st.button(f"🟢 I'm confident of page {page_val} of {surah_str}", on_click=upgrade_single_page, args=("1 - Confident",), use_container_width=True)
+                
+        elif current_cat == "3 - Not Memorized":
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                st.button(f"🟡 Surah {surah_str} needs revision", on_click=upgrade_full_surah, args=("2 - Needs Revision",), use_container_width=True)
+            with col_b2:
+                # FIXED: Updated wording for Button 2
+                st.button(f"🟡 page {page_val} of {surah_str} need revision", on_click=upgrade_single_page, args=("2 - Needs Revision",), use_container_width=True)
+                
+        # If CAT 1, we deliberately render nothing!
     else:
         st.success("🎉 **NEXT ON TO-DO LIST:** All caught up! No pages are due for revision.")
     # --------------------------------
