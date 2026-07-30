@@ -5,6 +5,7 @@ from datetime import date, timedelta, datetime
 import altair as alt
 import extra_streamlit_components as stx
 import time
+import streamlit.components.v1 as components
 
 # --- DATA: Fully Expanded 114 Surahs ---
 SURAH_DATA = [
@@ -57,6 +58,45 @@ def get_juz(page_num):
 
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="Quran Tracker Cloud", layout="wide", initial_sidebar_state="expanded")
+# --- NEW: PWA (NATIVE APP) CONFIGURATION ---
+pwa_setup = """
+<script>
+    if (window.parent) {
+        // 1. Tell Apple devices this is a native web app
+        var apple_capable = window.parent.document.createElement('meta');
+        apple_capable.name = 'apple-mobile-web-app-capable';
+        apple_capable.content = 'yes';
+        window.parent.document.head.appendChild(apple_capable);
+
+        var apple_status_bar = window.parent.document.createElement('meta');
+        apple_status_bar.name = 'apple-mobile-web-app-status-bar-style';
+        apple_status_bar.content = 'default';
+        window.parent.document.head.appendChild(apple_status_bar);
+
+        var apple_title = window.parent.document.createElement('meta');
+        apple_title.name = 'apple-mobile-web-app-title';
+        apple_title.content = 'Quran Tracker';
+        window.parent.document.head.appendChild(apple_title);
+
+        // 2. Add the JSON Manifest for Android & general PWA installation
+        var manifest = window.parent.document.createElement('link');
+        manifest.rel = 'manifest';
+        // We encode the app rules in a raw data string
+        manifest.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify({
+            "name": "Quran Tracker Cloud",
+            "short_name": "Quran Tracker",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#ffffff",
+            "theme_color": "#10b981",
+            "icons": [] 
+        }));
+        window.parent.document.head.appendChild(manifest);
+    }
+</script>
+"""
+components.html(pwa_setup, height=0, width=0)
+# -------------------------------------------
 
 if "sidebar_nav" not in st.session_state:
     st.session_state.sidebar_nav = "📊 Dashboard"
