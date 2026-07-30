@@ -548,10 +548,16 @@ if page == "📊 Dashboard":
 
         # Callback for a full Surah upgrade
         def upgrade_full_surah(target_priority):
-            surah_record = next(s for s in SURAH_DATA if s[1] == surah_name)
-            for p in range(surah_record[2], surah_record[3] + 1):
-                set_page_priority(surah_name, p, target_priority)
-            instant_db_save()
+            # FIXED: Match against the exact full string (e.g. "1. Al-Fatihah") and provide a safe fallback
+            surah_record = next((s for s in SURAH_DATA if f"{s[0]}. {s[1]}" == surah_str), None)
+            
+            if surah_record:
+                for p in range(surah_record[2], surah_record[3] + 1):
+                    # Use surah_record[1] which guarantees the exact pure name
+                    set_page_priority(surah_record[1], p, target_priority)
+                instant_db_save()
+            else:
+                st.error("Could not find the Surah in the database.")
 
         # Render the contextual buttons
         if current_cat == "2 - Needs Revision":
