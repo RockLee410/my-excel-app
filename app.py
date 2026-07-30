@@ -495,7 +495,14 @@ if not is_onboarded:
 
 # --- PAGE 1: DASHBOARD ---
 if page == "📊 Dashboard":
-    st.title("📊 Progress Dashboard")
+    head_col1, head_col2 = st.columns([3, 1])
+    with head_col1:
+        st.title("📊 Progress Dashboard")
+    with head_col2:
+        st.write("") # Adds a little vertical space so the button aligns nicely with the title
+        def jump_to_log():
+            st.session_state.sidebar_nav = "📝 Log Session"
+        st.button("📝 Log Session", type="primary", on_click=jump_to_log, use_container_width=True)
     df_logs = fetch_logs()
     df_dashboard = build_dashboard_rows(df_logs, df_priorities)
 
@@ -542,12 +549,47 @@ if page == "📊 Dashboard":
     col3.metric("📅 Total Sessions", total_sessions)
     st.markdown("---")
 
-    df_active = df_dashboard[df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])]
+    df_active = df_dashboard[df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])].copy()
     if df_active.empty:
         st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
     else:
         st.subheader("📚 Page-by-Page Tracker")
-        display_df = df_active[['Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due', 'Status']]
+        
+        # NEW: Collapse uniform Surahs into a single row
+        collapsed_rows = []
+        for surah_name, group in df_active.groupby('Surah', sort=False):
+            # Check if this Surah is uniform across the ENTIRE dashboard
+            full_surah_group = df_dashboard[df_dashboard['Surah'] == surah_name]
+            
+            if full_surah_group['Status'].nunique() == 1:
+                # All pages in this Surah share the exact same status! Collapse them.
+                first_row = group.iloc[0].copy()
+                
+                # Format Page range
+                min_page, max_page = group['Page'].min(), group['Page'].max()
+                first_row['Page'] = f"All ({min_page}-{max_page})" if min_page != max_page else str(min_page)
+                
+                # Format Juz range
+                min_juz, max_juz = group['Juz'].min(), group['Juz'].max()
+                first_row['Juz'] = f"{min_juz}-{max_juz}" if min_juz != max_juz else str(min_juz)
+                
+                # Handle varying dates (if you reviewed different pages on different days)
+                if group['Last Revised'].nunique() > 1:
+                    first_row['Last Revised'] = "Varies"
+                if group['Next Revision Due'].nunique() > 1:
+                    first_row['Next Revision Due'] = "Varies"
+                    
+                collapsed_rows.append(first_row)
+            else:
+                # The Surah has mixed statuses. Keep every page listed individually.
+                for _, row in group.iterrows():
+                    r = row.copy()
+                    r['Page'] = str(r['Page'])
+                    r['Juz'] = str(r['Juz'])
+                    collapsed_rows.append(r)
+                    
+        display_df = pd.DataFrame(collapsed_rows)
+        display_df = display_df[['Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due', 'Status']]
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         st.markdown("---")
@@ -716,7 +758,7 @@ elif page == "📜 View History":
             use_container_width=True,
             disabled=['__row_id'],
             column_config={
-                '__row_id': st.column_config.TextColumn('Row ID', disabled=True),
+                '__row_id': None, # 👈 Setting this to None completely hides it from the UI!
                 'Delete': st.column_config.CheckboxColumn('Delete', help='Select rows to delete'),
                 'log_date': st.column_config.TextColumn('Date'),
                 'from_surah': st.column_config.TextColumn('From Surah'),
