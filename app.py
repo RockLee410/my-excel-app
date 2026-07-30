@@ -4,6 +4,7 @@ from supabase import create_client, Client
 from datetime import date, timedelta, datetime
 import altair as alt
 import extra_streamlit_components as stx
+import time
 
 # --- DATA: Fully Expanded 114 Surahs ---
 SURAH_DATA = [
@@ -88,10 +89,9 @@ if st.session_state["user"] is None and qt_refresh:
         res = supabase.auth.set_session(qt_access, qt_refresh)
         st.session_state["user"] = res.user
         
-        # FIXED: Use exact datetime so iOS doesn't treat it as a temporary session cookie
-        expire_date = datetime.now() + timedelta(days=30)
-        cookie_manager.set("qt_access", res.session.access_token, expires_at=expire_date)
-        cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date)
+        # FIXED: Use standard 'expires=30' (days) which is universally understood by browsers
+        cookie_manager.set("qt_access", res.session.access_token, expires=30)
+        cookie_manager.set("qt_refresh", res.session.refresh_token, expires=30)
     except Exception:
         pass # Tokens expired or invalid, let them log in normally
 
@@ -107,14 +107,16 @@ def render_login():
                 response = supabase.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state["user"] = response.user
 
-                # FIXED: Use exact datetime so iOS doesn't treat it as a temporary session cookie
-                expire_date = datetime.now() + timedelta(days=30)
-                cookie_manager.set("qt_access", response.session.access_token, expires_at=expire_date)
-                cookie_manager.set("qt_refresh", response.session.refresh_token, expires_at=expire_date)
+                # FIXED: Use standard 'expires=30' (days) 
+                cookie_manager.set("qt_access", response.session.access_token, expires=30)
+                cookie_manager.set("qt_refresh", response.session.refresh_token, expires=30)
 
+                # Give the browser a half-second to physically save the cookies before reloading
+                time.sleep(0.5)
                 st.rerun()
-            except Exception:
-                st.error("Login failed. Check your credentials.")
+            except Exception as e:
+                # We will now print the actual technical error if anything fails!
+                st.error(f"Login failed: {e}")
 
     with tab2:
         new_email = st.text_input("Email", key="reg_email")
