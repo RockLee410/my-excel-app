@@ -5,7 +5,6 @@ from datetime import date, timedelta, datetime
 import altair as alt
 import extra_streamlit_components as stx
 import time
-import streamlit.components.v1 as components
 
 # --- DATA: Fully Expanded 114 Surahs ---
 SURAH_DATA = [
@@ -58,63 +57,6 @@ def get_juz(page_num):
 
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="Quran Tracker Cloud", layout="wide", initial_sidebar_state="expanded")
-# --- NEW: AGGRESSIVE PWA (NATIVE APP) CONFIGURATION WITH ICON ---
-pwa_setup = """
-<script>
-    if (window.parent) {
-        var doc = window.parent.document;
-
-        // 1. Hunt down and remove Streamlit's default manifest & Apple tags
-        var oldManifest = doc.querySelector('link[rel="manifest"]');
-        if (oldManifest) { oldManifest.remove(); }
-        var oldAppleTitle = doc.querySelector('meta[name="apple-mobile-web-app-title"]');
-        if (oldAppleTitle) { oldAppleTitle.remove(); }
-
-        // 2. Hunt down and remove ALL Streamlit logos/icons
-        var icons = doc.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="shortcut icon"]');
-        icons.forEach(function(icon) { icon.remove(); });
-
-        // 3. Generate a custom, high-res Islamic/Book icon on the fly (SVG format)
-        var iconUrl = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#10b981"/><text x="50" y="68" font-size="50" text-anchor="middle">📖</text></svg>');
-
-        // 4. Force Apple to use our App Name and Icon
-        var appleTitle = doc.createElement('meta');
-        appleTitle.name = 'apple-mobile-web-app-title';
-        appleTitle.content = 'Quran Tracker';
-        doc.head.appendChild(appleTitle);
-
-        var appleCapable = doc.createElement('meta');
-        appleCapable.name = 'apple-mobile-web-app-capable';
-        appleCapable.content = 'yes';
-        doc.head.appendChild(appleCapable);
-
-        var appleIcon = doc.createElement('link');
-        appleIcon.rel = 'apple-touch-icon';
-        appleIcon.href = iconUrl;
-        doc.head.appendChild(appleIcon);
-
-        // 5. Inject our custom JSON Manifest for Android
-        var manifest = doc.createElement('link');
-        manifest.rel = 'manifest';
-        manifest.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify({
-            "name": "Quran Tracker",
-            "short_name": "Quran Tracker",
-            "start_url": "/",
-            "display": "standalone",
-            "background_color": "#ffffff",
-            "theme_color": "#10b981",
-            "icons": [{
-                "src": iconUrl,
-                "sizes": "any",
-                "type": "image/svg+xml"
-            }]
-        }));
-        doc.head.appendChild(manifest);
-    }
-</script>
-"""
-components.html(pwa_setup, height=0, width=0)
-# -------------------------------------------
 
 if "sidebar_nav" not in st.session_state:
     st.session_state.sidebar_nav = "📊 Dashboard"
