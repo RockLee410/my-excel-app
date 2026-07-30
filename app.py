@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import altair as alt
 import extra_streamlit_components as stx
 
@@ -88,9 +88,10 @@ if st.session_state["user"] is None and qt_refresh:
         res = supabase.auth.set_session(qt_access, qt_refresh)
         st.session_state["user"] = res.user
         
-        # Refresh the cookies to keep them alive for another 30 days
-        cookie_manager.set("qt_access", res.session.access_token, max_age=30*24*60*60)
-        cookie_manager.set("qt_refresh", res.session.refresh_token, max_age=30*24*60*60)
+        # FIXED: Use exact datetime so iOS doesn't treat it as a temporary session cookie
+        expire_date = datetime.now() + timedelta(days=30)
+        cookie_manager.set("qt_access", res.session.access_token, expires_at=expire_date)
+        cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date)
     except Exception:
         pass # Tokens expired or invalid, let them log in normally
 
@@ -106,9 +107,10 @@ def render_login():
                 response = supabase.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state["user"] = response.user
 
-                # NEW: Save secure tokens to cookies for 30 days
-                cookie_manager.set("qt_access", response.session.access_token, max_age=30*24*60*60)
-                cookie_manager.set("qt_refresh", response.session.refresh_token, max_age=30*24*60*60)
+                # FIXED: Use exact datetime so iOS doesn't treat it as a temporary session cookie
+                expire_date = datetime.now() + timedelta(days=30)
+                cookie_manager.set("qt_access", response.session.access_token, expires_at=expire_date)
+                cookie_manager.set("qt_refresh", response.session.refresh_token, expires_at=expire_date)
 
                 st.rerun()
             except Exception:
@@ -589,7 +591,7 @@ if page == "📊 Dashboard":
                     collapsed_rows.append(r)
                     
         display_df = pd.DataFrame(collapsed_rows)
-        display_df = display_df[['Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due', 'Status']]
+        display_df = display_df[['Status', 'Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due']]
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         st.markdown("---")
@@ -715,7 +717,7 @@ elif page == "🚀 Today's Action Plan":
         st.success("🎉 All caught up! No pages are due for revision today.")
     else:
         df_top = df_actions.sort_values('Score').head(25)
-        display_df = df_top[['Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due', 'Status']]
+        display_df = df_top[['Status', 'Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due']]
         st.dataframe(display_df, use_container_width=True, hide_index=True)
         
         # NEW: One-Click Quick Log Workflow
