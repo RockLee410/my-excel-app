@@ -494,7 +494,7 @@ with st.sidebar:
         st.write("Please complete setup (or skip) to unlock the app.")
         page = "⚙️ Manage Priorities"
     else:
-        page = st.radio("📌 Navigation", ["📊 Dashboard", "📝 Log Session", "🚀 Today's Action Plan", "📜 View History", "⚙️ Manage Priorities"], key="sidebar_nav")
+        page = st.radio("📌 Navigation", ["📊 Dashboard", "📝 Log Session", "📋 Next on The To-Do List", "📜 View History", "⚙️ Manage Priorities"], key="sidebar_nav")
 
 # --- ONBOARDING GATE ---
 if not is_onboarded:
@@ -715,19 +715,14 @@ if page == "📊 Dashboard":
 elif page == "📝 Log Session":
     st.title("📝 Log Today's Revision")
     
-    # NEW: Pull pre-filled data from Action Plan Quick Log
-    prefill_surah = st.session_state.get("prefill_surah", "")
-    prefill_page = st.session_state.get("prefill_page", 0)
-    
     active_surah_options = [""] + get_active_surah_options(df_priorities)
-    surah_index = active_surah_options.index(prefill_surah) if prefill_surah in active_surah_options else 0
     
     with st.form("daily_log_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
             log_date = st.date_input("Date", date.today())
-            from_surah = st.selectbox("From Surah*", options=active_surah_options, index=surah_index)
-            from_page = st.number_input("From Page (Optional)", min_value=0, max_value=604, value=prefill_page, step=1)
+            from_surah = st.selectbox("From Surah*", options=active_surah_options)
+            from_page = st.number_input("From Page (Optional)", min_value=0, max_value=604, value=0, step=1)
         with col2:
             minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5)
             to_surah = st.selectbox("To Surah (Optional)", options=[""] + active_surah_options)
@@ -737,7 +732,7 @@ elif page == "📝 Log Session":
         submitted = st.form_submit_button("💾 Save Session to Cloud")
         
         if submitted:
-            # NEW: Strict Form Guardrails and Validation
+            # Strict Form Guardrails and Validation
             if to_page > 0 and from_page > 0 and to_page < from_page:
                 st.error("❌ Validation Error: 'To Page' cannot be smaller than 'From Page'.")
             elif minutes > 300:
@@ -757,16 +752,12 @@ elif page == "📝 Log Session":
                 }
                 supabase.table('daily_logs').insert(new_log).execute()
                 
-                # Clear prefills after successful save
-                if "prefill_surah" in st.session_state: del st.session_state["prefill_surah"]
-                if "prefill_page" in st.session_state: del st.session_state["prefill_page"]
-                
                 st.success("✅ Log saved successfully!")
                 st.balloons()
 
-# --- PAGE 3: TODAY'S ACTION PLAN ---
-elif page == "🚀 Today's Action Plan":
-    st.title("🚀 Today's Action Plan")
+# --- PAGE 3: Next on The To-Do List  ---
+elif page == "📋 Next on The To-Do List":
+    st.title("📋 Next on The To-Do List")
     st.write("This view mirrors the workbook's live ranking engine and surfaces the top pages that need attention.")
 
     df_logs = fetch_logs()
@@ -780,25 +771,7 @@ elif page == "🚀 Today's Action Plan":
         display_df = df_top[['Status', 'Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due']]
         st.dataframe(display_df, use_container_width=True, hide_index=True)
         
-        # NEW: One-Click Quick Log Workflow
-        st.markdown("---")
-        st.subheader("⚡ Quick Log")
-        st.write("Select one of your top priority actions and jump straight to the log tab.")
-        
-        action_options = [f"{row['Surah']} (Page {row['Page']})" for _, row in df_top.iterrows()]
-        selected_action = st.selectbox("Select an action to log:", action_options)
-        
-        # Define the callback function
-        def trigger_quick_log(action_string):
-            surah_part = action_string.split(" (Page ")[0]
-            page_part = int(action_string.split(" (Page ")[1].replace(")", ""))
-            
-            st.session_state.prefill_surah = surah_part
-            st.session_state.prefill_page = page_part
-            st.session_state.sidebar_nav = "📝 Log Session"
-
-        # Tie the callback to the button using on_click
-        st.button("📝 Log This Action", type="primary", on_click=trigger_quick_log, args=(selected_action,))
+       
 
 # --- PAGE 4: VIEW HISTORY ---
 elif page == "📜 View History":
