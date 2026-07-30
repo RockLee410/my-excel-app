@@ -476,13 +476,16 @@ with st.sidebar:
     if st.button("Logout"):
         supabase.auth.sign_out()
 
-        # NEW: Destroy cookies on manual logout
-        cookie_manager.delete("qt_access")
-        cookie_manager.delete("qt_refresh")
+        # FIXED: Added unique keys to prevent Streamlit widget errors
+        cookie_manager.delete("qt_access", key="del_access")
+        cookie_manager.delete("qt_refresh", key="del_refresh")
 
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state["user"] = None
+        
+        # FIXED: Give the browser a half-second to physically delete the cookies before reloading!
+        time.sleep(0.5)
         st.rerun()
     st.markdown("---")
     
