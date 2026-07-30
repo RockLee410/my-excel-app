@@ -186,6 +186,11 @@ def build_priority_counts(df_priorities):
         for page_num in range(surah[2], surah[3] + 1):
             override_priority = get_page_priority(surah_name, page_num)
             final_priority = override_priority if override_priority else base_priority
+            
+            # FIXED: Hardcode Al-Fatihah to Confident for the pie chart
+            if surah_name == "Al-Fatihah":
+                final_priority = "1 - Confident"
+                
             if final_priority in counts:
                 counts[final_priority] += 1
             else:
@@ -202,6 +207,11 @@ def get_active_surah_options(df_priorities):
     active_surahs = []
     for surah in SURAH_DATA:
         surah_name = surah[1]
+
+        # FIXED: Exclude Al-Fatihah from active logging dropdowns
+        if surah_name == "Al-Fatihah":
+            continue
+
         base_priority = priority_lookup.get(surah_name, "3 - Not Memorized")
         is_active = False
         for page_num in range(surah[2], surah[3] + 1):
@@ -274,6 +284,11 @@ def build_dashboard_rows(df_logs, df_priorities):
         for p in range(s[2], s[3] + 1):
             override_priority = get_page_priority(s[1], p)
             priority = override_priority if override_priority else base_priority
+
+            # FIXED: Hardcode Al-Fatihah to Confident for the Dashboard scores
+            if s[1] == "Al-Fatihah":
+                priority = "1 - Confident"
+
             last_rev = page_last_revised[p]
             
             if priority == "3 - Not Memorized":
@@ -343,6 +358,9 @@ def render_priority_manager(onboarding=False):
             
     setup_rows = []
     for s in SURAH_DATA:
+        if s[1] == "Al-Fatihah":
+            continue # FIXED: Hide from setup viewer
+
         surah_name = s[1]
         base_priority = priority_lookup.get(surah_name, "3 - Not Memorized")
         
@@ -407,7 +425,7 @@ def render_priority_manager(onboarding=False):
     tab1, tab2, tab3 = st.tabs(["📖 Specific Surah(s)", "📚 Range of Surahs", "📄 Range of Pages"])
     
     priority_options = ["1 - Confident", "2 - Needs Revision", "3 - Not Memorized"]
-    surah_options_full = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
+    surah_options_full = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[1] != "Al-Fatihah"]
     
     with tab1:
         st.write("Select one or more specific Surahs from the list.")
@@ -430,7 +448,7 @@ def render_priority_manager(onboarding=False):
         with col_s1:
             start_s = st.selectbox("From Surah", options=surah_options_full, index=0, key="tab2_start")
         with col_s2:
-            end_s = st.selectbox("To Surah", options=surah_options_full, index=113, key="tab2_end")
+            end_s = st.selectbox("To Surah", options=surah_options_full, index=len(surah_options_full) - 1, key="tab2_end")
             
         t2_priority = st.selectbox("Priority to apply", priority_options, key="tab2_pri")
         if st.button("Apply to Surah Range", key="btn_tab2"):
@@ -565,7 +583,7 @@ if page == "📊 Dashboard":
     st.markdown("---")
     
     # --- NEW: NEXT ON TO-DO LIST ---
-    df_actions = df_dashboard[df_dashboard['Status'] != '🟢 Good'].copy()
+    df_actions = df_dashboard[(df_dashboard['Status'] != '🟢 Good') & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
     if not df_actions.empty:
         top_action = df_actions.sort_values('Score').iloc[0]
         st.info(f"🎯 **NEXT ON TO-DO LIST:** {top_action['Surah']} (Page {top_action['Page']})")
@@ -658,7 +676,7 @@ if page == "📊 Dashboard":
     col3.metric("📅 Total Sessions", total_sessions)
     st.markdown("---")
 
-    df_active = df_dashboard[df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])].copy()
+    df_active = df_dashboard[(df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])) & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
     if df_active.empty:
         st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
     else:
@@ -809,7 +827,7 @@ elif page == "📋 Next on The To-Do List":
 
     df_logs = fetch_logs()
     df_dashboard = build_dashboard_rows(df_logs, df_priorities)
-    df_actions = df_dashboard[df_dashboard['Status'] != '🟢 Good'].copy()
+    df_actions = df_dashboard[(df_dashboard['Status'] != '🟢 Good') & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
 
     if df_actions.empty:
         st.success("🎉 All caught up! No pages are due for revision today.")
