@@ -273,11 +273,16 @@ def build_dashboard_rows(df_logs, df_priorities):
             
             if priority == "3 - Not Memorized":
                 status = "⚪ Not Started"
-                score = 500000 + p
+                score = 600000 + p
                 next_due = ""
             elif last_rev is None:
-                status = "⏳ Pending"
-                score = 200000 + p
+                # NEW: Split Pending into Cat 1 and Cat 2
+                if priority == "1 - Confident":
+                    status = "⏳ Pending (Cat 1)"
+                    score = 300000 + p
+                else: 
+                    status = "⏳ Pending (Cat 2)"
+                    score = 500000 + p
                 next_due = ""
             else:
                 days_since = (today - last_rev).days
@@ -287,11 +292,11 @@ def build_dashboard_rows(df_logs, df_priorities):
                     score = 100000 + p
                 elif days_since >= 11:
                     status = "🟡 Due Soon"
-                    score = 400000 + p
+                    score = 200000 + p
                 else:
                     if priority == "2 - Needs Revision":
                         status = "🟡 Needs Revision"
-                        score = 300000 + p
+                        score = 400000 + p 
                     else:
                         status = "🟢 Good"
                         score = 900000 + p
@@ -726,26 +731,37 @@ elif page == "📜 View History":
 
         col1, col2, col3 = st.columns([1, 1, 2])
         with col1:
-            if st.button("💾 Save Changes"):
-                for _, row in editable_history.iterrows():
-                    if row['Delete']: continue
-                    row_id = row['__row_id']
-                    payload = {
-                        'log_date': row['log_date'],
-                        'from_surah': row['from_surah'] if str(row['from_surah']).strip() else None,
-                        'to_surah': row['to_surah'] if str(row['to_surah']).strip() else None,
-                        'from_page': int(row['from_page']) if pd.notna(row['from_page']) and str(row['from_page']).strip() not in ['', 'nan'] else None,
-                        'to_page': int(row['to_page']) if pd.notna(row['to_page']) and str(row['to_page']).strip() not in ['', 'nan'] else None,
-                        'minutes': int(row['minutes']) if pd.notna(row['minutes']) else None,
-                        'notes': row['notes'] if str(row['notes']).strip() else None,
-                    }
-                    try:
-                        supabase.table('daily_logs').update(payload).eq('id', row_id).execute()
-                    except Exception:
-                        if row_id.startswith('row_'): continue
-                        else: raise
-                st.success("✅ History updated.")
-                st.rerun()
+            with col1:
+                if st.button("💾 Save Changes"):
+                    # NEW: Helper function to aggressively scrub Pandas NaNs
+                    def clean_val(val, is_int=False):
+                        if pd.isna(val): return None
+                        s_val = str(val).strip()
+                        if s_val.lower() in ['', 'nan', 'none', '<na>']: return None
+                        return int(float(s_val)) if is_int else s_val
+
+                    for _, row in editable_history.iterrows():
+                        if row['Delete']: continue
+                        row_id = row['__row_id']
+                        
+                        # Package the clean payload
+                        payload = {
+                            'log_date': clean_val(row['log_date']),
+                            'from_surah': clean_val(row['from_surah']),
+                            'to_surah': clean_val(row['to_surah']),
+                            'from_page': clean_val(row['from_page'], is_int=True),
+                            'to_page': clean_val(row['to_page'], is_int=True),
+                            'minutes': clean_val(row['minutes'], is_int=True),
+                            'notes': clean_val(row['notes'])
+                        }
+                        
+                        try:
+                            supabase.table('daily_logs').update(payload).eq('id', row_id).execute()
+                        except Exception:
+                            if row_id.startswith('row_'): continue
+                            else: raise
+                    st.success("✅ History updated.")
+                    st.rerun()
 
         with col2:
             if st.button("🗑️ Delete Selected"):
