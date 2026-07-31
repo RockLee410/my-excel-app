@@ -55,13 +55,20 @@ def get_juz(page_num):
         if page_num >= start: return i + 1
     return 1
 
+# Reverse helper for Juz -> Pages
+def get_juz_page_range(juz_num):
+    juz_starts = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582]
+    start = juz_starts[juz_num - 1]
+    end = juz_starts[juz_num] - 1 if juz_num < 30 else 604
+    return start, end
+
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="Quran Tracker Cloud", layout="wide", initial_sidebar_state="expanded")
 
 if "sidebar_nav" not in st.session_state:
     st.session_state.sidebar_nav = "📊 Dashboard"
 
-# NEW: Start the Cookie Manager (Uncached)
+# Start the Cookie Manager (Uncached)
 cookie_manager = stx.CookieManager(key="quran_tracker_cookies")
 
 # --- INITIALIZE DATABASE CONNECTION ---
@@ -79,7 +86,7 @@ except Exception:
 if "user" not in st.session_state:
     st.session_state["user"] = None
 
-# NEW: Try to Auto-Login using Cookies
+# Try to Auto-Login using Cookies
 qt_access = cookie_manager.get("qt_access")
 qt_refresh = cookie_manager.get("qt_refresh")
 
@@ -89,7 +96,6 @@ if st.session_state["user"] is None and qt_refresh:
         res = supabase.auth.set_session(qt_access, qt_refresh)
         st.session_state["user"] = res.user
         
-        # FIXED: Add unique keys to avoid Streamlit duplicate errors
         expire_date = datetime.now() + timedelta(days=30)
         cookie_manager.set("qt_access", res.session.access_token, expires_at=expire_date, key="set_access_auto")
         cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date, key="set_refresh_auto")
@@ -108,7 +114,6 @@ def render_login():
                 response = supabase.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state["user"] = response.user
 
-                # FIXED: Add unique keys to avoid Streamlit duplicate errors
                 expire_date = datetime.now() + timedelta(days=30)
                 cookie_manager.set("qt_access", response.session.access_token, expires_at=expire_date, key="set_access_login")
                 cookie_manager.set("qt_refresh", response.session.refresh_token, expires_at=expire_date, key="set_refresh_login")
@@ -187,7 +192,7 @@ def build_priority_counts(df_priorities):
             override_priority = get_page_priority(surah_name, page_num)
             final_priority = override_priority if override_priority else base_priority
             
-            # FIXED: Hardcode Al-Fatihah to Confident for the pie chart
+            # Hardcode Al-Fatihah to Confident for the pie chart
             if surah_name == "Al-Fatihah":
                 final_priority = "1 - Confident"
                 
@@ -208,7 +213,7 @@ def get_active_surah_options(df_priorities):
     for surah in SURAH_DATA:
         surah_name = surah[1]
 
-        # FIXED: Exclude Al-Fatihah from active logging dropdowns
+        # Exclude Al-Fatihah from active logging dropdowns
         if surah_name == "Al-Fatihah":
             continue
 
@@ -244,25 +249,16 @@ def build_dashboard_rows(df_logs, df_priorities):
             f_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == from_surah_str]
             t_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == to_surah_str]
 
-            # 1. If from_page is missing, grab the start page of the from_surah
             if pd.isna(f_p) or f_p == 0:
-                if f_match:
-                    f_p = f_match[0][2]
+                if f_match: f_p = f_match[0][2]
             
-            # 2. If to_page is missing, grab the end page of the to_surah
             if pd.isna(t_p) or t_p == 0:
-                if t_match:
-                    t_p = t_match[0][3]
-                elif f_match:
-                    t_p = f_match[0][3]
-                else:
-                    t_p = f_p # Ultimate fallback if literally everything is blank
+                if t_match: t_p = t_match[0][3]
+                elif f_match: t_p = f_match[0][3]
+                else: t_p = f_p 
 
-            # 3. Apply the date to the calculated page range
             if pd.notna(f_p) and f_p > 0:
                 f_p, t_p = int(f_p), int(t_p)
-                
-                # Safety catch: Ensure the loop always runs forward
                 start_page = min(f_p, t_p)
                 end_page = max(f_p, t_p)
                 
@@ -285,7 +281,7 @@ def build_dashboard_rows(df_logs, df_priorities):
             override_priority = get_page_priority(s[1], p)
             priority = override_priority if override_priority else base_priority
 
-            # FIXED: Hardcode Al-Fatihah to Confident for the Dashboard scores
+            # Hardcode Al-Fatihah to Confident for the Dashboard scores
             if s[1] == "Al-Fatihah":
                 priority = "1 - Confident"
 
@@ -296,7 +292,6 @@ def build_dashboard_rows(df_logs, df_priorities):
                 score = 600000 + p
                 next_due = ""
             elif last_rev is None:
-                # NEW: Split Pending into Cat 1 and Cat 2
                 if priority == "1 - Confident":
                     status = "⏳ Pending (Cat 1)"
                     score = 300000 + p
@@ -335,163 +330,99 @@ def build_dashboard_rows(df_logs, df_priorities):
     return pd.DataFrame(rows)
 
 def render_priority_manager(onboarding=False):
-    if onboarding:
-        st.title("👋 Welcome to your Quran Tracker!")
-        st.write("Assign priorities to your Surahs or pages below to build your baseline.")
-        
-        if st.button("⏭️ Skip Setup & Go to Dashboard"):
-            supabase.table('surah_categories').insert([{"user_name": user_email, "surah_number": 0, "surah_name": "ONBOARDED", "category": "SYSTEM"}]).execute()
-            st.rerun()
-            
-        st.markdown("---")
-    else:
-        st.title("🗂️ Manage Surah Priorities")
-        st.write("Use the tools below to quickly update your active priorities.")
-    # --- NEW: CURRENT SETUP VIEWER ---
-    st.markdown("#### 📊 Current Setup")
-    
-    # Build the current status logic
-    priority_lookup = {}
-    if not df_priorities.empty:
-        for _, row in df_priorities.iterrows():
-            priority_lookup[row['surah_name']] = row['category']
-            
-    setup_rows = []
-    for s in SURAH_DATA:
-        if s[1] == "Al-Fatihah":
-            continue # FIXED: Hide from setup viewer
+    # HELPER: Apply range logic for actual Pages & Juz (Hits ALL Surahs on those pages)
+    def apply_page_range_priority(start_p, end_p, priority):
+        for page_num in range(start_p, end_p + 1):
+            for s in SURAH_DATA:
+                if s[2] <= page_num <= s[3]:
+                    if s[1] != "Al-Fatihah":
+                        set_page_priority(s[1], page_num, priority)
+                    
+    # HELPER: Dynamic renderer for the 5-Tab Question approach
+    def render_onboarding_tabs(target_priority, key_prefix):
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📖 Specific Surah(s)", "📚 Range of Surahs", "📄 Range of Pages", "🔸 Specific Juz(s)", "🔄 Range of Juzs"])
+        surah_options_full = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[1] != "Al-Fatihah"]
+        juz_options = [f"Juz {i}" for i in range(1, 31)]
 
-        surah_name = s[1]
-        base_priority = priority_lookup.get(surah_name, "3 - Not Memorized")
+        with tab1:
+            selected_surahs = st.multiselect("Select Surah(s)", options=surah_options_full, key=f"{key_prefix}_t1")
+            if st.button("Apply", key=f"{key_prefix}_b1"):
+                if selected_surahs:
+                    for surah_label in selected_surahs:
+                        surah_num = int(surah_label.split('. ', 1)[0])
+                        surah_record = next(s for s in SURAH_DATA if s[0] == surah_num)
+                        if surah_record[1] != "Al-Fatihah":
+                            for page_num in range(surah_record[2], surah_record[3] + 1):
+                                set_page_priority(surah_record[1], page_num, target_priority)
+                    st.toast(f"✅ Applied to {target_priority}!")
+                else:
+                    st.warning("Please select at least one.")
         
-        # Check if there are page-level overrides causing mixed priorities
-        page_priorities = set()
-        for p in range(s[2], s[3] + 1):
-            override = get_page_priority(surah_name, p)
-            page_priorities.add(override if override else base_priority)
-        
-        if len(page_priorities) == 1:
-            display_pri = list(page_priorities)[0]
-        else:
-            display_pri = "🔄 Mixed (Page-level overrides)"
-            
-        setup_rows.append({
-            "No.": s[0],
-            "Surah": s[1],
-            "Current Priority": display_pri
-        })
-        
-    # Display as a clean, fixed-height scrollable table to prevent UI clutter
-    st.dataframe(
-        pd.DataFrame(setup_rows), 
-        use_container_width=True, 
-        hide_index=True, 
-        height=250,  # Keeps it compact
-        column_config={
-            "No.": st.column_config.NumberColumn("No.", width="small"),
-            "Surah": st.column_config.TextColumn("Surah", width="medium"),
-            "Current Priority": st.column_config.TextColumn("Priority Level")
-        }
-    )
-    st.markdown("---")
-    # --- QUICK ADD JUZ SECTION ---
-    def apply_juz_priority(start_surah, end_surah, priority):
-        for s in SURAH_DATA:
-            if start_surah <= s[0] <= end_surah:
-                for page_num in range(s[2], s[3] + 1):
-                    set_page_priority(s[1], page_num, priority)
-
-    st.markdown("#### ⚡ Quick Adds")
-    q_col1, q_col2 = st.columns(2)
-    with q_col1:
-        if st.button("🟢 Set Juz 30 to Priority 1 - Confident", use_container_width=True):
-            apply_juz_priority(78, 114, "1 - Confident")
-            st.toast("✅ Juz 30 updated! Remember to click Save below.")
-        if st.button("🟢 Set Juz 29 to Priority 1 - Confident", use_container_width=True):
-            apply_juz_priority(67, 77, "1 - Confident")
-            st.toast("✅ Juz 29 updated! Remember to click Save below.")
-    with q_col2:
-        if st.button("🟡 Set Juz 30 to Priority 2 - Needs Revision", use_container_width=True):
-            apply_juz_priority(78, 114, "2 - Needs Revision")
-            st.toast("✅ Juz 30 updated! Remember to click Save below.")
-        if st.button("🟡 Set Juz 29 to Priority 2 - Needs Revision", use_container_width=True):
-            apply_juz_priority(67, 77, "2 - Needs Revision")
-            st.toast("✅ Juz 29 updated! Remember to click Save below.")
-            
-    st.markdown("---")
-    
-    # --- TAB-BASED ASSIGNMENT UI ---
-    st.markdown("#### 🎯 Assign Priorities")
-    tab1, tab2, tab3 = st.tabs(["📖 Specific Surah(s)", "📚 Range of Surahs", "📄 Range of Pages"])
-    
-    priority_options = ["1 - Confident", "2 - Needs Revision", "3 - Not Memorized"]
-    surah_options_full = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[1] != "Al-Fatihah"]
-    
-    with tab1:
-        st.write("Select one or more specific Surahs from the list.")
-        selected_surahs = st.multiselect("Select Surah(s)", options=surah_options_full, key="tab1_surahs")
-        t1_priority = st.selectbox("Priority to apply", priority_options, key="tab1_pri")
-        if st.button("Apply to Selected Surah(s)", key="btn_tab1"):
-            if selected_surahs:
-                for surah_label in selected_surahs:
-                    surah_num = int(surah_label.split('. ', 1)[0])
-                    surah_record = next(s for s in SURAH_DATA if s[0] == surah_num)
-                    for page_num in range(surah_record[2], surah_record[3] + 1):
-                        set_page_priority(surah_record[1], page_num, t1_priority)
-                st.success("✅ Priorities applied! Remember to click Save below.")
-            else:
-                st.warning("Please select at least one Surah.")
-                
-    with tab2:
-        st.write("Apply a priority to a continuous range of Surahs.")
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            start_s = st.selectbox("From Surah", options=surah_options_full, index=0, key="tab2_start")
-        with col_s2:
-            end_s = st.selectbox("To Surah", options=surah_options_full, index=len(surah_options_full) - 1, key="tab2_end")
-            
-        t2_priority = st.selectbox("Priority to apply", priority_options, key="tab2_pri")
-        if st.button("Apply to Surah Range", key="btn_tab2"):
-            num_start = int(start_s.split('. ', 1)[0])
-            num_end = int(end_s.split('. ', 1)[0])
-            
-            if num_start > num_end:
-                st.error("❌ 'From Surah' must be before 'To Surah'.")
-            else:
-                for s in SURAH_DATA:
-                    if num_start <= s[0] <= num_end:
-                        for page_num in range(s[2], s[3] + 1):
-                            set_page_priority(s[1], page_num, t2_priority)
-                st.success(f"✅ Priorities applied from {start_s} to {end_s}! Remember to click Save below.")
-
-    with tab3:
-        st.write("Apply a priority to a continuous range of physical pages (e.g., Pages 1 to 10).")
-        col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            start_p = st.number_input("From Page", min_value=1, max_value=604, value=1, step=1, key="tab3_start")
-        with col_p2:
-            end_p = st.number_input("To Page", min_value=1, max_value=604, value=10, step=1, key="tab3_end")
-            
-        t3_priority = st.selectbox("Priority to apply", priority_options, key="tab3_pri")
-        if st.button("Apply to Page Range", key="btn_tab3"):
-            if start_p > end_p:
-                st.error("❌ 'From Page' must be before 'To Page'.")
-            else:
-                for page_num in range(start_p, end_p + 1):
+        with tab2:
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                start_s = st.selectbox("From Surah", options=surah_options_full, index=0, key=f"{key_prefix}_t2_start")
+            with col_s2:
+                end_s = st.selectbox("To Surah", options=surah_options_full, index=len(surah_options_full) - 1, key=f"{key_prefix}_t2_end")
+            if st.button("Apply", key=f"{key_prefix}_b2"):
+                num_start = int(start_s.split('. ', 1)[0])
+                num_end = int(end_s.split('. ', 1)[0])
+                if num_start > num_end:
+                    st.error("❌ 'From Surah' must be before 'To Surah'.")
+                else:
                     for s in SURAH_DATA:
-                        if s[2] <= page_num <= s[3]:
-                            set_page_priority(s[1], page_num, t3_priority)
-                            break
-                st.success(f"✅ Priorities applied to pages {start_p}-{end_p}! Remember to click Save below.")
+                        if num_start <= s[0] <= num_end:
+                            if s[1] != "Al-Fatihah":
+                                for page_num in range(s[2], s[3] + 1):
+                                    set_page_priority(s[1], page_num, target_priority)
+                    st.toast(f"✅ Applied {start_s} to {end_s} to {target_priority}!")
 
-    st.markdown("---")
+        with tab3:
+            col_p1, col_p2 = st.columns(2)
+            with col_p1:
+                start_p = st.number_input("From Page", min_value=1, max_value=604, value=1, step=1, key=f"{key_prefix}_t3_start")
+            with col_p2:
+                end_p = st.number_input("To Page", min_value=1, max_value=604, value=10, step=1, key=f"{key_prefix}_t3_end")
+            if st.button("Apply", key=f"{key_prefix}_b3"):
+                if start_p > end_p:
+                    st.error("❌ 'From Page' must be before 'To Page'.")
+                else:
+                    apply_page_range_priority(start_p, end_p, target_priority)
+                    st.toast(f"✅ Applied Pages {start_p}-{end_p} to {target_priority}!")
 
-    # --- SAVE BUTTON ---
-    if st.button("💾 Save Page Priorities to Cloud", type="primary"):
+        with tab4:
+            selected_juzs = st.multiselect("Select Juz(s)", options=juz_options, key=f"{key_prefix}_t4")
+            if st.button("Apply", key=f"{key_prefix}_b4"):
+                if selected_juzs:
+                    for j_str in selected_juzs:
+                        j_num = int(j_str.replace("Juz ", ""))
+                        start_p, end_p = get_juz_page_range(j_num)
+                        apply_page_range_priority(start_p, end_p, target_priority)
+                    st.toast(f"✅ Applied to {target_priority}!")
+                else:
+                    st.warning("Please select at least one.")
+
+        with tab5:
+            col_j1, col_j2 = st.columns(2)
+            with col_j1:
+                start_j = st.selectbox("From Juz", options=juz_options, index=0, key=f"{key_prefix}_t5_start")
+            with col_j2:
+                end_j = st.selectbox("To Juz", options=juz_options, index=29, key=f"{key_prefix}_t5_end")
+            if st.button("Apply", key=f"{key_prefix}_b5"):
+                num_start = int(start_j.replace("Juz ", ""))
+                num_end = int(end_j.replace("Juz ", ""))
+                if num_start > num_end:
+                    st.error("❌ 'From Juz' must be before 'To Juz'.")
+                else:
+                    for j_num in range(num_start, num_end + 1):
+                        start_p, end_p = get_juz_page_range(j_num)
+                        apply_page_range_priority(start_p, end_p, target_priority)
+                    st.toast(f"✅ Applied {start_j} to {end_j} to {target_priority}!")
+
+    def save_priorities_to_db(success_msg="✅ Page priorities permanently saved to the cloud!"):
         state = get_page_priority_state()
         try:
             supabase.table('page_priorities').delete().eq('user_name', user_email).execute()
-            
             inserts = []
             for k, cat in state.items():
                 surah_n, page_n = k.split("::")
@@ -501,35 +432,172 @@ def render_priority_manager(onboarding=False):
                     "page_number": int(page_n),
                     "category": cat
                 })
-                
             if inserts:
                 supabase.table('page_priorities').insert(inserts).execute()
-                
             if not is_onboarded:
                 supabase.table('surah_categories').insert([{"user_name": user_email, "surah_number": 0, "surah_name": "ONBOARDED", "category": "SYSTEM"}]).execute()
-                
-            st.success("✅ Page priorities permanently saved to the cloud!")
+            st.success(success_msg)
+            time.sleep(1)
+            st.rerun()
         except Exception as e:
             st.error(f"❌ Database Save Error: {e}")
 
-    # --- FACTORY RESET ---
-    st.markdown("---")
-    st.markdown("### ⚠️ Danger Zone")
-    with st.expander("Need to start over?"):
-        st.warning("This will permanently delete all your assigned priorities and send you back to the initial setup screen. Your daily study logs will NOT be deleted.")
-        if st.button("🗑️ Reset All Priorities", type="secondary"):
-            try:
-                supabase.table('page_priorities').delete().eq('user_name', user_email).execute()
-                supabase.table('surah_categories').delete().eq('user_name', user_email).execute()
+    # ==========================================================
+    # ONBOARDING FLOW ONLY (Setup Page)
+    # ==========================================================
+    if onboarding:
+        st.title("👋 Welcome to your Quran Tracker!")
+        st.write("Let's build your baseline by answering two simple questions. *Al-Fatihah is excluded here and defaults to Confident automatically.*")
+        
+        if st.button("⏭️ Skip Setup & Go to Dashboard"):
+            supabase.table('surah_categories').insert([{"user_name": user_email, "surah_number": 0, "surah_name": "ONBOARDED", "category": "SYSTEM"}]).execute()
+            st.rerun()
+            
+        st.markdown("---")
+        
+        st.markdown("### 🟢 First, tell us what surahs/portions you are confident about?")
+        st.write("These will be set to **Priority 1**.")
+        render_onboarding_tabs("1 - Confident", "q1")
+        
+        st.markdown("---")
+        
+        st.markdown("### 🟡 Second, tell us what surahs you've memorized before but need revision?")
+        st.write("These will be set to **Priority 2**.")
+        render_onboarding_tabs("2 - Needs Revision", "q2")
+        
+        st.markdown("---")
+        if st.button("💾 Complete Setup & Save to Cloud", type="primary", use_container_width=True):
+            save_priorities_to_db("✅ Setup complete! Redirecting to Dashboard...")
+
+    # ==========================================================
+    # MANAGE PRIORITIES FLOW ONLY
+    # ==========================================================
+    else:
+        st.title("🗂️ Manage Surah Priorities")
+        st.write("Use the tools below to quickly update your active priorities. *Al-Fatihah is excluded here and defaults to Confident automatically.*")
+        
+        # --- CURRENT SETUP VIEWER ---
+        st.markdown("#### 📊 Current Setup")
+        
+        priority_lookup = {}
+        if not df_priorities.empty:
+            for _, row in df_priorities.iterrows():
+                priority_lookup[row['surah_name']] = row['category']
                 
-                cache_key = f"page_priority_map_{user_email}"
-                if cache_key in st.session_state:
-                    del st.session_state[cache_key]
+        setup_rows = []
+        for s in SURAH_DATA:
+            if s[1] == "Al-Fatihah":
+                continue
+
+            surah_name = s[1]
+            base_priority = priority_lookup.get(surah_name, "3 - Not Memorized")
+            
+            page_priorities = set()
+            for p in range(s[2], s[3] + 1):
+                override = get_page_priority(surah_name, p)
+                page_priorities.add(override if override else base_priority)
+            
+            if len(page_priorities) == 1:
+                display_pri = list(page_priorities)[0]
+            else:
+                display_pri = "🔄 Mixed (Page-level overrides)"
+                
+            setup_rows.append({
+                "No.": s[0],
+                "Surah": s[1],
+                "Current Priority": display_pri
+            })
+            
+        st.dataframe(
+            pd.DataFrame(setup_rows), 
+            use_container_width=True, 
+            hide_index=True, 
+            height=250,
+            column_config={
+                "No.": st.column_config.NumberColumn("No.", width="small"),
+                "Surah": st.column_config.TextColumn("Surah", width="medium"),
+                "Current Priority": st.column_config.TextColumn("Priority Level")
+            }
+        )
+        st.markdown("---")
+        
+        # --- NEW ASSIGNMENT METHOD (Mirroring Setup Page) ---
+        st.markdown("### 🟢 Update confident surahs/portions")
+        st.write("These will be set to **Priority 1**.")
+        render_onboarding_tabs("1 - Confident", "m1")
+        
+        st.markdown("---")
+        
+        st.markdown("### 🟡 Update surahs/portions that need revision")
+        st.write("These will be set to **Priority 2**.")
+        render_onboarding_tabs("2 - Needs Revision", "m2")
+        
+        st.markdown("---")
+
+        # --- SAVE BUTTON ---
+        if st.button("💾 Save Page Priorities to Cloud", type="primary", use_container_width=True):
+            save_priorities_to_db()
+
+        # --- FACTORY RESET ---
+        st.markdown("---")
+        st.markdown("### ⚠️ Danger Zone")
+        with st.expander("Need to start over?"):
+            st.warning("This will permanently delete all your assigned priorities and send you back to the initial setup screen. Your daily study logs will NOT be deleted.")
+            if st.button("🗑️ Reset All Priorities", type="secondary"):
+                try:
+                    supabase.table('page_priorities').delete().eq('user_name', user_email).execute()
+                    supabase.table('surah_categories').delete().eq('user_name', user_email).execute()
                     
-                st.success("✅ Priorities reset! Redirecting to setup...")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Failed to reset: {e}")
+                    cache_key = f"page_priority_map_{user_email}"
+                    if cache_key in st.session_state:
+                        del st.session_state[cache_key]
+                        
+                    st.success("✅ Priorities reset! Redirecting to setup...")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Failed to reset: {e}")
+
+# --- NEW: ONBOARDING POP-UP DIALOG ---
+@st.dialog("Welcome to your daily journey! 📖")
+def show_intro_popup():
+    step = st.session_state.get('intro_step', 1)
+    
+    if step == 1:
+        st.subheader("Welcome to Quran Tracker Cloud!")
+        st.write("The ultimate goal of this app is simple: to help you read, revise, and memorize the Quran every single day.")
+        st.write("It does not matter how long it takes you to finish the Quran. Whether you can commit to 15 minutes, 30 minutes, or an hour a day—what truly matters is your consistency. This tool is designed to help you build and maintain a lifelong relationship with the Quran at your own pace.")
+        
+        if st.button("Next ➔", type="primary", use_container_width=True):
+            st.session_state.intro_step = 2
+            st.rerun()
+            
+    elif step == 2:
+        st.subheader("Never Forget What You've Learned")
+        st.write("Memorizing is great, but retaining it is harder. To make sure you never forget what you have already memorized, this app uses a smart ranking engine to build your daily tasks.")
+        st.write("**1 - Confident:** We protect what you know. Pages you are confident in will be surfaced exactly when they need a quick review.")
+        st.write("**2 - Needs Revision:** Next, we focus on pages you have memorized in the past but need some active work to lock them in.")
+        st.write("**3 - Not Memorized:** Only after your previous memorization is secure will the app guide you to focus on brand-new pages.")
+        
+        col1, col2 = st.columns(2)
+        if col1.button("⬅ Back", use_container_width=True):
+            st.session_state.intro_step = 1
+            st.rerun()
+        if col2.button("Next ➔", type="primary", use_container_width=True):
+            st.session_state.intro_step = 3
+            st.rerun()
+            
+    elif step == 3:
+        st.subheader("Setting Your Baseline")
+        st.write("Before we can build your personalized **Next on The To-Do List**, we need to know where you currently stand.")
+        st.write("In the next screen, you will be asked to assign your current memorization levels to the Surahs (or specific pages) you already know.")
+        
+        col1, col2 = st.columns(2)
+        if col1.button("⬅ Back", use_container_width=True):
+            st.session_state.intro_step = 2
+            st.rerun()
+        if col2.button("🚀 Start Setup", type="primary", use_container_width=True):
+            st.session_state.intro_complete = True
+            st.rerun()
 
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
@@ -537,7 +605,6 @@ with st.sidebar:
     if st.button("Logout"):
         supabase.auth.sign_out()
 
-        # FIXED: Added unique keys to prevent Streamlit widget errors
         cookie_manager.delete("qt_access", key="del_access")
         cookie_manager.delete("qt_refresh", key="del_refresh")
 
@@ -545,7 +612,6 @@ with st.sidebar:
             del st.session_state[key]
         st.session_state["user"] = None
         
-        # FIXED: Give the browser a half-second to physically delete the cookies before reloading!
         time.sleep(0.5)
         st.rerun()
     st.markdown("---")
@@ -559,7 +625,14 @@ with st.sidebar:
 
 # --- ONBOARDING GATE ---
 if not is_onboarded:
-    render_priority_manager(onboarding=True)
+    if not st.session_state.get('intro_complete', False):
+        show_intro_popup()
+        st.title("👋 Welcome to your Quran Tracker!")
+        st.info("Please complete the welcome pop-up to begin. If you accidentally closed it, click the button below.")
+        if st.button("Re-open Welcome Guide"):
+            st.rerun()
+    else:
+        render_priority_manager(onboarding=True)
     st.stop()
 
 # --- PAGE 1: DASHBOARD ---
@@ -568,16 +641,17 @@ if page == "📊 Dashboard":
     with head_col1:
         st.title("📊 Progress Dashboard")
     with head_col2:
-        st.write("") # Adds a little vertical space so the button aligns nicely with the title
+        st.write("") 
         def jump_to_log():
             st.session_state.sidebar_nav = "📝 Log Session"
         st.button("📝 Log Session", type="primary", on_click=jump_to_log, use_container_width=True)
     df_logs = fetch_logs()
     df_dashboard = build_dashboard_rows(df_logs, df_priorities)
 
-    # NEW: Global Progress Bar
-    total_confident = df_dashboard[df_dashboard['Priority'] == '1 - Confident'].shape[0]
-    progress_pct = total_confident / 604.0
+    # NEW: Global Progress Bar (FIXED FOR OVERLAPPING PAGES)
+    # Use .nunique() on the 'Page' column to only count unique physical pages
+    total_confident = df_dashboard[df_dashboard['Priority'] == '1 - Confident']['Page'].nunique()
+    progress_pct = min(total_confident / 604.0, 1.0)
     st.markdown(f"### 🏆 Memorization Progress: {int(progress_pct * 100)}%")
     st.progress(progress_pct, text=f"{total_confident} out of 604 pages confidently memorized")
     st.markdown("---")
@@ -588,13 +662,11 @@ if page == "📊 Dashboard":
         top_action = df_actions.sort_values('Score').iloc[0]
         st.info(f"🎯 **NEXT ON TO-DO LIST:** {top_action['Surah']} (Page {top_action['Page']})")
         
-        # --- QUICK PRIORITY UPGRADE BUTTONS ---
         current_cat = top_action['Priority']
         surah_str = top_action['Surah']
         surah_name = surah_str.split('. ', 1)[1]
         page_val = int(top_action['Page'])
         
-        # Helper function to instantly save changes to the cloud
         def instant_db_save():
             state = get_page_priority_state()
             try:
@@ -605,35 +677,27 @@ if page == "📊 Dashboard":
             except Exception as e:
                 st.error(f"Failed to save to cloud: {e}")
 
-        # Callback for a single page upgrade
         def upgrade_single_page(target_priority):
             set_page_priority(surah_name, page_val, target_priority)
             instant_db_save()
-            # NEW: Clean toast notification that doesn't shift the screen
             st.toast(f"✅ Page {page_val} upgraded to {target_priority.split(' - ')[1]}!")
 
-        # Callback for a full Surah upgrade
         def upgrade_full_surah(target_priority):
-            # FIXED: Match against the exact full string (e.g. "1. Al-Fatihah") and provide a safe fallback
             surah_record = next((s for s in SURAH_DATA if f"{s[0]}. {s[1]}" == surah_str), None)
             
             if surah_record:
                 for p in range(surah_record[2], surah_record[3] + 1):
-                    # Use surah_record[1] which guarantees the exact pure name
                     set_page_priority(surah_record[1], p, target_priority)
                 instant_db_save()
-                # NEW: Clean toast notification for full Surah upgrades
                 st.toast(f"✅ {surah_str} upgraded to {target_priority.split(' - ')[1]}!")
             else:
                 st.toast("❌ Could not find the Surah in the database.")
 
-        # Render the contextual buttons
         if current_cat == "2 - Needs Revision":
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 st.button(f"🟢 I am confident of Surah {surah_str}", on_click=upgrade_full_surah, args=("1 - Confident",), use_container_width=True)
             with col_b2:
-                # FIXED: Updated wording for Button 2
                 st.button(f"🟢 I'm confident of page {page_val} of {surah_str}", on_click=upgrade_single_page, args=("1 - Confident",), use_container_width=True)
                 
         elif current_cat == "3 - Not Memorized":
@@ -641,10 +705,8 @@ if page == "📊 Dashboard":
             with col_b1:
                 st.button(f"🟡 Surah {surah_str} needs revision", on_click=upgrade_full_surah, args=("2 - Needs Revision",), use_container_width=True)
             with col_b2:
-                # FIXED: Updated wording for Button 2
                 st.button(f"🟡 page {page_val} of {surah_str} need revision", on_click=upgrade_single_page, args=("2 - Needs Revision",), use_container_width=True)
                 
-        # If CAT 1, we deliberately render nothing!
     else:
         st.success("🎉 **NEXT ON TO-DO LIST:** All caught up! No pages are due for revision.")
     # --------------------------------
@@ -682,25 +744,19 @@ if page == "📊 Dashboard":
     else:
         st.subheader("📚 Page-by-Page Tracker")
         
-        # NEW: Collapse uniform Surahs into a single row
         collapsed_rows = []
         for surah_name, group in df_active.groupby('Surah', sort=False):
-            # Check if this Surah is uniform across the ENTIRE dashboard
             full_surah_group = df_dashboard[df_dashboard['Surah'] == surah_name]
             
             if full_surah_group['Status'].nunique() == 1:
-                # All pages in this Surah share the exact same status! Collapse them.
                 first_row = group.iloc[0].copy()
                 
-                # Format Page range
                 min_page, max_page = group['Page'].min(), group['Page'].max()
                 first_row['Page'] = f"All ({min_page}-{max_page})" if min_page != max_page else str(min_page)
                 
-                # Format Juz range
                 min_juz, max_juz = group['Juz'].min(), group['Juz'].max()
                 first_row['Juz'] = f"{min_juz}-{max_juz}" if min_juz != max_juz else str(min_juz)
                 
-                # Handle varying dates (if you reviewed different pages on different days)
                 if group['Last Revised'].nunique() > 1:
                     first_row['Last Revised'] = "Varies"
                 if group['Next Revision Due'].nunique() > 1:
@@ -708,7 +764,6 @@ if page == "📊 Dashboard":
                     
                 collapsed_rows.append(first_row)
             else:
-                # The Surah has mixed statuses. Keep every page listed individually.
                 for _, row in group.iterrows():
                     r = row.copy()
                     r['Page'] = str(r['Page'])
@@ -740,7 +795,6 @@ if page == "📊 Dashboard":
                 recent_logs = recent_logs[recent_logs['log_date'] >= last_14]
                 
                 if not recent_logs.empty:
-                    # Calculate total pages read for each log entry
                     pages_read_list = []
                     for _, log in recent_logs.iterrows():
                         f_p = log.get('from_page')
@@ -760,7 +814,6 @@ if page == "📊 Dashboard":
                             elif f_match: t_p = f_match[0][3]
                             else: t_p = f_p
                             
-                        # Calculate the spread (adding 1 to include both start and end pages)
                         if pd.notna(f_p) and pd.notna(t_p) and f_p > 0:
                             pages = abs(int(t_p) - int(f_p)) + 1
                         else:
@@ -770,7 +823,6 @@ if page == "📊 Dashboard":
                         
                     recent_logs['Pages Read'] = pages_read_list
                     
-                    # Group by date and sum up the pages read
                     daily_counts = recent_logs.groupby('log_date')['Pages Read'].sum().reset_index()
                     st.line_chart(daily_counts.set_index('log_date'))
                 else:
@@ -797,7 +849,6 @@ elif page == "📝 Log Session":
         submitted = st.form_submit_button("💾 Save Session to Cloud")
         
         if submitted:
-            # Strict Form Guardrails and Validation
             if to_page > 0 and from_page > 0 and to_page < from_page:
                 st.error("❌ Validation Error: 'To Page' cannot be smaller than 'From Page'.")
             elif minutes > 300:
@@ -858,7 +909,7 @@ elif page == "📜 View History":
             use_container_width=True,
             disabled=['__row_id'],
             column_config={
-                '__row_id': None, # 👈 Setting this to None completely hides it from the UI!
+                '__row_id': None,
                 'Delete': st.column_config.CheckboxColumn('Delete', help='Select rows to delete'),
                 'log_date': st.column_config.TextColumn('Date'),
                 'from_surah': st.column_config.TextColumn('From Surah'),
@@ -875,7 +926,6 @@ elif page == "📜 View History":
         with col1:
             with col1:
                 if st.button("💾 Save Changes"):
-                    # NEW: Helper function to aggressively scrub Pandas NaNs
                     def clean_val(val, is_int=False):
                         if pd.isna(val): return None
                         s_val = str(val).strip()
@@ -886,7 +936,6 @@ elif page == "📜 View History":
                         if row['Delete']: continue
                         row_id = row['__row_id']
                         
-                        # Package the clean payload
                         payload = {
                             'log_date': clean_val(row['log_date']),
                             'from_surah': clean_val(row['from_surah']),
