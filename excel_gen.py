@@ -46,7 +46,8 @@ SURAH_DATA = [
     (112, "Al-Ikhlas", 604, 604), (113, "Al-Falaq", 604, 604), (114, "An-Nas", 604, 604)
 ]
 
-surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA]
+# Removed Al-Fatihah from the UI selection options
+surah_options = [f"{s[0]}. {s[1]}" for s in SURAH_DATA if s[1] != "Al-Fatihah"]
 total_surahs = len(SURAH_DATA)
 
 def get_juz(page_num):
@@ -97,6 +98,9 @@ if uploaded_file is not None and "file_loaded" not in st.session_state:
            
             c1_list, c2_list = [], []
             for s in SURAH_DATA:
+                # Skip adding Al-Fatihah back into the UI state
+                if s[1] == "Al-Fatihah": continue
+                
                 if s[1] in cat1_surahs: c1_list.append(f"{s[0]}. {s[1]}")
                 if s[1] in cat2_surahs: c2_list.append(f"{s[0]}. {s[1]}")
            
@@ -238,7 +242,12 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
    
     for s in SURAH_DATA:
         surah_string = f"{s[0]}. {s[1]}"
-        category = "1 - Confident" if surah_string in cat1_selections else "2 - Needs Revision" if surah_string in cat2_selections else "3 - Not Memorized"
+        
+        # Hardcode Al-Fatihah to always be Priority 1, ignoring UI selections
+        if s[1] == "Al-Fatihah":
+            category = "1 - Confident"
+        else:
+            category = "1 - Confident" if surah_string in cat1_selections else "2 - Needs Revision" if surah_string in cat2_selections else "3 - Not Memorized"
            
         pages = list(range(s[2], s[3] + 1))
         num_pages = len(pages)
@@ -274,15 +283,18 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
            
             worksheet.write_blank(row, 8, None, border_format)
 
-            # 🧠 CORE ENGINE: Rank actions by tier first, then by row order for stable ordering
-            score_formula = (
-                f'=IF(H{dash_row_num}="🔴 Overdue", 1, '
-                f'IF(H{dash_row_num}="Pending", 2, '
-                f'IF(E{dash_row_num}="2 - Needs Revision", 3, '
-                f'IF(H{dash_row_num}="🟡 Due Soon", 4, '
-                f'IF(E{dash_row_num}="3 - Not Memorized", 5, 6)))))'
-                f' + (ROW()/1000000)'
-            )
+            # Assign a permanent low-priority score of 9 to Al-Fatihah so it never triggers on the To-Do list
+            if s[1] == "Al-Fatihah":
+                score_formula = f'=9 + (ROW()/1000000)'
+            else:
+                score_formula = (
+                    f'=IF(H{dash_row_num}="🔴 Overdue", 1, '
+                    f'IF(H{dash_row_num}="Pending", 2, '
+                    f'IF(E{dash_row_num}="2 - Needs Revision", 3, '
+                    f'IF(H{dash_row_num}="🟡 Due Soon", 4, '
+                    f'IF(E{dash_row_num}="3 - Not Memorized", 5, 6)))))'
+                    f' + (ROW()/1000000)'
+                )
             worksheet.write_formula(row, 9, score_formula)
            
         current_excel_row += num_pages
@@ -314,8 +326,8 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     chart.set_size({'width': 480, 'height': 300})
     worksheet.insert_chart('O6', chart, {'object_position': 3})
 
-    # --- SHEET 2: TODAY'S ACTION PLAN ---
-    action_sheet = workbook.add_worksheet("Today's Action Plan")
+    # --- SHEET 2: NEXT ON TO DO LIST ---
+    action_sheet = workbook.add_worksheet("Next on To Do List")
     action_sheet.hide_gridlines(2)
    
     # Hide helper columns A and B (Used for Rank and Score matching)
@@ -326,7 +338,7 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
     action_sheet.set_column('G:H', 18, action_date_format)
     action_sheet.set_column('I:I', 15)
    
-    action_sheet.write('C1', "🚀 Top 25 Next Actions Engine", progress_format)
+    action_sheet.write('C1', "🚀 Next on To Do List", progress_format)
     action_sheet.write('C2', "This sheet uses a live ranking algorithm to dictate exactly what you should do next in order of priority.")
    
     action_headers = ['Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Due', 'Status']
@@ -335,21 +347,15 @@ if st.button(f"Generate {user_name.strip()}'s Excel Tracker", type="primary"):
        
     action_sheet.write('C5', "📋 Complete these top items first:", fire_format)
     
-    # 🧠 INDEX MATCH LOOP: Pulls data dynamically based on the SMALL score without Array Formulas
     for row in range(5, 30):
         action_row = row + 1
         
-        # Col A: Search Rank (1 through 25)
         action_sheet.write_number(row, 0, row - 4)
-        
-        # Col B: Fetch the Nth smallest score from the Dashboard
         action_sheet.write_formula(row, 1, f'=IFERROR(SMALL(\'Surah Dashboard\'!$J$6:$J${last_dash_row}, A{action_row}), "")')
         
-        # Col C through I: Pull the matching Dashboard Data
         dash_cols = ['B', 'C', 'D', 'E', 'F', 'G', 'H']
         for idx, letter in enumerate(dash_cols):
             target_col = idx + 2
-            # Fixed the $B{action_row}>=6 threshold to properly hide Tier 6 (🟢 Good)
             formula = f'=IF(OR($B{action_row}="", $B{action_row}>=6), "", INDEX(\'Surah Dashboard\'!{letter}$6:{letter}${last_dash_row}, MATCH($B{action_row}, \'Surah Dashboard\'!$J$6:$J${last_dash_row}, 0)))'
             action_sheet.write_formula(row, target_col, formula)
 
