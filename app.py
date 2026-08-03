@@ -242,7 +242,9 @@ def get_active_surah_options(df_priorities):
     return active_surahs
 
 def build_dashboard_rows(df_logs, df_priorities):
-    page_last_revised = {p: None for p in range(1, 605)}
+    # Key last revised by (Surah_Name, Page_Number) to prevent boundary pages from leaking into unread Surahs
+    page_last_revised = {(s[1], p): None for s in SURAH_DATA for p in range(s[2], s[3] + 1)}
+    
     if not df_logs.empty:
         logs = df_logs.copy()
         logs['log_date'] = pd.to_datetime(logs['log_date']).dt.date
@@ -258,6 +260,17 @@ def build_dashboard_rows(df_logs, df_priorities):
             f_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == from_surah_str]
             t_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == to_surah_str]
 
+            # 1. Determine which Surahs were explicitly covered by this log session
+            if f_match and t_match:
+                num_start = min(f_match[0][0], t_match[0][0])
+                num_end = max(f_match[0][0], t_match[0][0])
+                covered_surahs = [x for x in SURAH_DATA if num_start <= x[0] <= num_end]
+            elif f_match:
+                covered_surahs = [f_match[0]]
+            else:
+                covered_surahs = SURAH_DATA # Fallback if only page numbers were logged without Surahs
+
+            # 2. Extract start and end page bounds
             if pd.isna(f_p) or f_p == 0:
                 if f_match: f_p = f_match[0][2]
             
@@ -266,15 +279,27 @@ def build_dashboard_rows(df_logs, df_priorities):
                 elif f_match: t_p = f_match[0][3]
                 else: t_p = f_p 
 
+            # 3. Only apply revision dates to pages belonging to the covered Surahs
             if pd.notna(f_p) and f_p > 0:
                 f_p, t_p = int(f_p), int(t_p)
                 start_page = min(f_p, t_p)
                 end_page = max(f_p, t_p)
                 
-                for p in range(start_page, end_page + 1):
-                    if 1 <= p <= 604:
-                        if page_last_revised[p] is None or log_date > page_last_revised[p]:
-                            page_last_revised[p] = log_date
+                for surah in covered_surahs:
+                    s_name = surah[1]
+                    s_start_p = surah[2]
+                    s_end_p = surah[3]
+                    
+                    # Intersect the logged page range with the specific Surah's page range
+                    p_start = max(start_page, s_start_p)
+                    p_end = min(end_page, s_end_p)
+                    
+                    if p_start <= p_end:
+                        for p in range(p_start, p_end + 1):
+                            if 1 <= p <= 604:
+                                key = (s_name, p)
+                                if page_last_revised[key] is None or log_date > page_last_revised[key]:
+                                    page_last_revised[key] = log_date
 
     priority_lookup = {}
     if not df_priorities.empty:
@@ -293,7 +318,8 @@ def build_dashboard_rows(df_logs, df_priorities):
             if s[1] == "Al-Fatihah":
                 priority = "1 - Confident"
 
-            last_rev = page_last_revised[p]
+            # Fetch revision specifically for THIS Surah on THIS page
+            last_rev = page_last_revised.get((s[1], p))
             
             if priority == "3 - Not Memorized":
                 status = "⚪ Not Started"
@@ -799,21 +825,19 @@ if page == "📊 Dashboard":
         df_timeline = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
         df_timeline['Clean_Surah'] = df_timeline['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
 
-        # --- 1. AGGREGATE PER PHYSICAL PAGE (Fixes Overlapping Layers) ---
+        # --- 1. AGGREGATE PER PHYSICAL PAGE ---
         aggregated_rows = []
         for p_num, group in df_timeline.groupby('Page', sort=True):
-            # Sort group by score so the most urgent status is chosen for the block color
             sorted_group = group.sort_values('Score')
             top_row = sorted_group.iloc[0].copy()
             
-            # Combine all Surah names present on this physical page
             all_surahs = group['Clean_Surah'].unique()
             top_row['Clean_Surah'] = " / ".join(all_surahs)
             aggregated_rows.append(top_row)
 
         chart_df = pd.DataFrame(aggregated_rows)
 
-        # --- 2. CALCULATE JUZ OFFSETS FOR MATRIX GRID ---
+        # --- 2. CALCULATE JUZ OFFSETS & CENTER POINTS FOR TEXT ---
         def get_juz_start(juz_num):
             juz_starts = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582]
             return juz_starts[int(juz_num) - 1]
@@ -821,14 +845,27 @@ if page == "📊 Dashboard":
         chart_df['Juz_Start'] = chart_df['Juz'].apply(get_juz_start)
         chart_df['Relative_Page'] = chart_df['Page'] - chart_df['Juz_Start'] + 1
         chart_df['Relative_Page_End'] = chart_df['Relative_Page'] + 1
+        chart_df['Center_Page'] = chart_df['Relative_Page'] + 0.5  # Centers numbers inside each cell
 
+        # FIXED: Distinct High-Contrast Palette
         status_domain = ["🟢 Good", "🟡 Due Soon", "🟡 Needs Revision", "🔴 Overdue", "⏳ Pending (Cat 1)", "⏳ Pending (Cat 2)", "⚪ Not Started"]
-        status_colors = ["#10b981", "#fde047", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#1f2937"]
+        status_colors = [
+            "#10b981",  # Emerald Green
+            "#dd5912",  # Bright Electric Yellow (Due Soon)
+            "#F57F17",  # Deep Blaze Orange (Needs Revision - very distinct!)
+            "#ef4444",  # Ruby Red
+            "#3b82f6",  # Sky Blue
+            "#8b5cf6",  # Deep Purple
+            "#BDBDBD"   # Dark Charcoal
+        ]
 
-        # --- 3. BUILD INTERACTIVE ALTAIR MATRIX ---
+        # --- 3. BUILD LAYERED ALTAIR CHART (Rectangles + Page Numbers) ---
         click = alt.selection_point(name='click', fields=['Page'])
 
-        timeline_chart = alt.Chart(chart_df).mark_rect(
+        base_chart = alt.Chart(chart_df)
+
+        # Layer A: Colored Rectangles
+        rects = base_chart.mark_rect(
             stroke='#022c22',
             strokeWidth=1.5,
             cornerRadius=2
@@ -838,25 +875,39 @@ if page == "📊 Dashboard":
             y=alt.Y('Juz:O', title="Juz", sort=alt.EncodingSortField(field="Juz", order="ascending")),
             color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=3)),
             opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
-        ).add_params(
-            click
-        ).properties(
-            height=600
         )
+
+        # Layer B: Page Number Labels
+        text = base_chart.mark_text(
+            baseline='middle',
+            align='center',
+            fontSize=8,
+            fontWeight='bold'
+        ).encode(
+            x=alt.X('Center_Page:Q'),
+            y=alt.Y('Juz:O'),
+            text=alt.Text('Page:Q'),
+            color=alt.condition(
+                (alt.datum.Status == '⚪ Not Started') | (alt.datum.Status == '🔴 Overdue') | (alt.datum.Status == '⏳ Pending (Cat 2)'),
+                alt.value('#ffffff'),
+                alt.value('#022c22')
+            ),
+            opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
+        )
+
+        timeline_chart = (rects + text).add_params(click).properties(height=600)
 
         chart_event = st.altair_chart(timeline_chart, use_container_width=True, theme=None, on_select="rerun")
 
-        # --- 4. RENDER TAP DETAILS (Handles Single and Multi-Surah Pages) ---
+        # --- 4. RENDER TAP DETAILS ---
         if chart_event and chart_event.selection and "click" in chart_event.selection:
             selections = chart_event.selection["click"]
             if selections:
                 selected_page = selections[0]["Page"]
                 
-                # Retrieve ALL Surahs that reside on this clicked page
                 page_surahs = df_dashboard[(df_dashboard['Page'] == selected_page) & (df_dashboard['Surah'] != '1. Al-Fatihah')]
                 
                 if len(page_surahs) == 1:
-                    # Standard Single-Surah Page
                     r = page_surahs.iloc[0]
                     c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
                     next_due_str = f" &nbsp; | &nbsp; **Next Due:** {r['Next Revision Due']}" if r['Next Revision Due'] else ""
@@ -866,7 +917,6 @@ if page == "📊 Dashboard":
                         f"**📅 Last Revised:** {r['Last Revised']}{next_due_str}"
                     )
                 elif len(page_surahs) > 1:
-                    # Multi-Surah Page (e.g., Page 604 with Al-Ikhlas, Al-Falaq, An-Nas)
                     juz_num = page_surahs.iloc[0]['Juz']
                     surah_lines = []
                     for _, r in page_surahs.iterrows():
