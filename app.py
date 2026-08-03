@@ -851,7 +851,7 @@ if page == "📊 Dashboard":
         status_domain = ["🟢 Good", "🟡 Due Soon", "🟡 Needs Revision", "🔴 Overdue", "⏳ Pending (Cat 1)", "⏳ Pending (Cat 2)", "⚪ Not Started"]
         status_colors = [
             "#10b981",  # Emerald Green
-            "#dd5912",  # Bright Electric Yellow (Due Soon)
+            "#ddd012",  # Bright Electric Yellow (Due Soon)
             "#F57F17",  # Deep Blaze Orange (Needs Revision - very distinct!)
             "#ef4444",  # Ruby Red
             "#3b82f6",  # Sky Blue
