@@ -818,8 +818,7 @@ if page == "📊 Dashboard":
         timeline_chart = alt.Chart(chart_df).mark_rect(
             stroke='#022c22', # Adds a border matching the Islamic background to create a "grid" gap
             strokeWidth=1.5, 
-            rx=2, # Slightly rounds the block corners
-            ry=2
+            cornerRadius=2 # FIXED: Altair's correct parameter for rounded corners
         ).encode(
             x=alt.X('Relative_Page:Q', title="Page within Juz", axis=alt.Axis(labels=False, ticks=False, grid=False)),
             x2='Relative_Page_End:Q',
