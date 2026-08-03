@@ -792,26 +792,15 @@ if page == "📊 Dashboard":
     if df_active.empty:
         st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
     else:
-        df_active = df_dashboard[(df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])) & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
-    if df_active.empty:
-        st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
-    else:
         st.subheader("📚 Visual Progress Timeline")
-        st.write("Hover over any segment of the timeline to see exact page details, revision status, and due dates.")
+        # FIXED: Updated instructions for mobile users
+        st.write("Tap on any segment of the timeline to see exact page details, revision status, and due dates.")
         
-       # We use the FULL dashboard dataframe so the timeline represents the entire Quran
         chart_df = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
-        
-        # Create an 'End Page' for the rectangles so every single page renders as a continuous block
         chart_df['Page_End'] = chart_df['Page'] + 1
-        
-        # Clean up the Surah name for the tooltip
         chart_df['Clean_Surah'] = chart_df['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
-        
-        # --- FIXED 1: Add a dummy variable to force the rectangles to have thickness ---
         chart_df['Timeline'] = "Quran Progress"
         
-        # Define the exact colors to match our new Islamic Theme
         status_domain = [
             "🟢 Good", 
             "🟡 Due Soon", 
@@ -822,20 +811,18 @@ if page == "📊 Dashboard":
             "⚪ Not Started"
         ]
         status_colors = [
-            "#10b981", # Emerald Green
-            "#fde047", # Soft Yellow
-            "#f59e0b", # Orange
-            "#ef4444", # Red
-            "#3b82f6", # Blue
-            "#8b5cf6", # Purple
-            "#1f2937"  # Dark Slate (blends into the background for unstarted pages)
+            "#10b981", 
+            "#fde047", 
+            "#f59e0b", 
+            "#ef4444", 
+            "#3b82f6", 
+            "#8b5cf6", 
+            "#1f2937"  
         ]
         
-        # Build the horizontal ribbon chart
         timeline_chart = alt.Chart(chart_df).mark_rect().encode(
             x=alt.X('Page:Q', scale=alt.Scale(domain=[2, 605]), title="Quran Page Number", axis=alt.Axis(tickCount=10, grid=False)),
             x2='Page_End:Q',
-            # --- FIXED 1: Map the Y-axis and hide the labels so it just looks like a floating ribbon ---
             y=alt.Y('Timeline:N', title=None, axis=alt.Axis(labels=False, ticks=False, domain=False)),
             color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=4)),
             tooltip=[
@@ -847,11 +834,10 @@ if page == "📊 Dashboard":
             ]
         ).properties(
             height=120 
-        ).interactive() 
+        ) # FIXED: Removed the .interactive() command so iPhone taps work!
         
-        # --- FIXED 2: Tell Streamlit to respect our custom Islamic colors (theme=None) ---
         st.altair_chart(timeline_chart, use_container_width=True, theme=None)
-        
+
         st.markdown("---")
         col_pie, col_chart = st.columns(2)
         with col_pie:
