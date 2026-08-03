@@ -832,11 +832,14 @@ if page == "📊 Dashboard":
                 alt.Tooltip('Last Revised:N', title='Last Revised'),
                 alt.Tooltip('Next Revision Due:N', title='Due Date')
             ]
+        # ... (keep all the encoding exactly the same) ...
         ).properties(
-            height=120 
-        ) # FIXED: Removed the .interactive() command so iPhone taps work!
+            height=120,
+            width=2500  # --- NEW: Force the chart to be extremely wide! ---
+        ) 
         
-        st.altair_chart(timeline_chart, use_container_width=True, theme=None)
+        # --- FIXED: Turn OFF use_container_width so it doesn't shrink to fit the screen ---
+        st.altair_chart(timeline_chart, use_container_width=False, theme=None)
 
         st.markdown("---")
         col_pie, col_chart = st.columns(2)
