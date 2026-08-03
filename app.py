@@ -793,51 +793,96 @@ if page == "📊 Dashboard":
         st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
     else:
         st.subheader("📚 Visual Progress Timeline")
-        # FIXED: Updated instructions for mobile users
-        st.write("Tap on any segment of the timeline to see exact page details, revision status, and due dates.")
+        st.write("Tap any block on the timeline below to view its revision details.")
         
-        # We use the FULL dashboard dataframe so the timeline represents the entire Quran
-        chart_df = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
-        
-        # --- NEW: Convert to a Juz-by-Juz Matrix for Mobile ---
-        # Calculate where each page falls within its specific Juz (e.g., Page 1 to 22)
+        # Filter out Al-Fatihah
+        df_timeline = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
+        df_timeline['Clean_Surah'] = df_timeline['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
+
+        # --- 1. AGGREGATE PER PHYSICAL PAGE (Fixes Overlapping Layers) ---
+        aggregated_rows = []
+        for p_num, group in df_timeline.groupby('Page', sort=True):
+            # Sort group by score so the most urgent status is chosen for the block color
+            sorted_group = group.sort_values('Score')
+            top_row = sorted_group.iloc[0].copy()
+            
+            # Combine all Surah names present on this physical page
+            all_surahs = group['Clean_Surah'].unique()
+            top_row['Clean_Surah'] = " / ".join(all_surahs)
+            aggregated_rows.append(top_row)
+
+        chart_df = pd.DataFrame(aggregated_rows)
+
+        # --- 2. CALCULATE JUZ OFFSETS FOR MATRIX GRID ---
         def get_juz_start(juz_num):
             juz_starts = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582]
             return juz_starts[int(juz_num) - 1]
-            
+
         chart_df['Juz_Start'] = chart_df['Juz'].apply(get_juz_start)
         chart_df['Relative_Page'] = chart_df['Page'] - chart_df['Juz_Start'] + 1
         chart_df['Relative_Page_End'] = chart_df['Relative_Page'] + 1
-        
-        chart_df['Clean_Surah'] = chart_df['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
-        
+
         status_domain = ["🟢 Good", "🟡 Due Soon", "🟡 Needs Revision", "🔴 Overdue", "⏳ Pending (Cat 1)", "⏳ Pending (Cat 2)", "⚪ Not Started"]
         status_colors = ["#10b981", "#fde047", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#1f2937"]
-        
-        # Build a vertical Juz-by-Juz matrix (looks like a Github activity graph)
+
+        # --- 3. BUILD INTERACTIVE ALTAIR MATRIX ---
+        click = alt.selection_point(name='click', fields=['Page'])
+
         timeline_chart = alt.Chart(chart_df).mark_rect(
-            stroke='#022c22', # Adds a border matching the Islamic background to create a "grid" gap
-            strokeWidth=1.5, 
-            cornerRadius=2 # FIXED: Altair's correct parameter for rounded corners
+            stroke='#022c22',
+            strokeWidth=1.5,
+            cornerRadius=2
         ).encode(
             x=alt.X('Relative_Page:Q', title="Page within Juz", axis=alt.Axis(labels=False, ticks=False, grid=False)),
             x2='Relative_Page_End:Q',
             y=alt.Y('Juz:O', title="Juz", sort=alt.EncodingSortField(field="Juz", order="ascending")),
             color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=3)),
-            tooltip=[
-                alt.Tooltip('Clean_Surah:N', title='Surah'),
-                alt.Tooltip('Juz:O', title='Juz'),
-                alt.Tooltip('Page:Q', title='Overall Page'),
-                alt.Tooltip('Status:N', title='Status'),
-                alt.Tooltip('Last Revised:N', title='Last Revised'),
-                alt.Tooltip('Next Revision Due:N', title='Due Date')
-            ]
+            opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
+        ).add_params(
+            click
         ).properties(
-            height=600 # Tall enough to comfortably display all 30 rows on a phone
+            height=600
         )
-        
-        # --- FIXED: We can safely turn use_container_width back on! ---
-        st.altair_chart(timeline_chart, use_container_width=True, theme=None)
+
+        chart_event = st.altair_chart(timeline_chart, use_container_width=True, theme=None, on_select="rerun")
+
+        # --- 4. RENDER TAP DETAILS (Handles Single and Multi-Surah Pages) ---
+        if chart_event and chart_event.selection and "click" in chart_event.selection:
+            selections = chart_event.selection["click"]
+            if selections:
+                selected_page = selections[0]["Page"]
+                
+                # Retrieve ALL Surahs that reside on this clicked page
+                page_surahs = df_dashboard[(df_dashboard['Page'] == selected_page) & (df_dashboard['Surah'] != '1. Al-Fatihah')]
+                
+                if len(page_surahs) == 1:
+                    # Standard Single-Surah Page
+                    r = page_surahs.iloc[0]
+                    c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
+                    next_due_str = f" &nbsp; | &nbsp; **Next Due:** {r['Next Revision Due']}" if r['Next Revision Due'] else ""
+                    st.success(
+                        f"**📖 Surah {c_name}** (Page {selected_page} | Juz {r['Juz']})  \n"
+                        f"**📊 Status:** {r['Status']}  \n"
+                        f"**📅 Last Revised:** {r['Last Revised']}{next_due_str}"
+                    )
+                elif len(page_surahs) > 1:
+                    # Multi-Surah Page (e.g., Page 604 with Al-Ikhlas, Al-Falaq, An-Nas)
+                    juz_num = page_surahs.iloc[0]['Juz']
+                    surah_lines = []
+                    for _, r in page_surahs.iterrows():
+                        c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
+                        due_info = f" | Next Due: {r['Next Revision Due']}" if r['Next Revision Due'] else ""
+                        surah_lines.append(f"• **Surah {c_name}**: {r['Status']} (Last Revised: {r['Last Revised']}{due_info})")
+                    
+                    details_text = "  \n".join(surah_lines)
+                    st.success(
+                        f"**📖 Page {selected_page} (Juz {juz_num}) — Contains {len(page_surahs)} Surahs:**  \n"
+                        f"{details_text}"
+                    )
+            else:
+                st.info("👆 Tap any colored block on the timeline above to see page details.")
+        else:
+            st.info("👆 Tap any colored block on the timeline above to see page details.")
 
         st.markdown("---")
         col_pie, col_chart = st.columns(2)
