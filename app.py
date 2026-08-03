@@ -64,6 +64,24 @@ def get_juz_page_range(juz_num):
 # --- STREAMLIT UI SETUP ---
 st.set_page_config(page_title="Quran Tracker Cloud", layout="wide", initial_sidebar_state="expanded")
 
+# --- ISLAMIC THEME CSS ---
+st.markdown("""
+<style>
+    /* Injects a subtle, transparent geometric star pattern into the main background */
+    .stApp {
+        background-color: #022c22;
+        background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4af37' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    
+    /* Makes the metric numbers (Streak, Hours, etc.) pop in Gold */
+    [data-testid="stMetricValue"] {
+        color: #d4af37 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+# -------------------------
+
+
 if "sidebar_nav" not in st.session_state:
     st.session_state.sidebar_nav = "📊 Dashboard"
 
@@ -295,7 +313,7 @@ def build_dashboard_rows(df_logs, df_priorities):
                 if days_since > 14:
                     status = "🔴 Overdue"
                     score = 100000 + p
-                elif days_since >= 11:
+                elif days_since >= 12:
                     status = "🟡 Due Soon"
                     score = 200000 + p
                 else:
@@ -647,12 +665,14 @@ if page == "📊 Dashboard":
     df_actions = df_dashboard[(df_dashboard['Status'] != '🟢 Good') & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
     if not df_actions.empty:
         top_action = df_actions.sort_values('Score').iloc[0]
-        st.info(f"🎯 **NEXT ON TO-DO LIST:** {top_action['Surah']} (Page {top_action['Page']})")
         
         current_cat = top_action['Priority']
         surah_str = top_action['Surah']
-        surah_name = surah_str.split('. ', 1)[1]
+        surah_name = surah_str.split('. ', 1)[1] # Extracts just the name!
         page_val = int(top_action['Page'])
+        
+        # FIXED: Using the clean 'surah_name' instead of 'surah_str' here
+        st.info(f"🎯 **NEXT ON TO-DO LIST:** Start Reading from Surah {surah_name} (Page {page_val})")
 
         # --- BULLETPROOF CALLBACKS ---
         # The callbacks now accept explicit parameters to avoid Streamlit state bugs,
@@ -731,44 +751,107 @@ if page == "📊 Dashboard":
     col1.metric("🔥 Current Streak", f"{streak} Days")
     col2.metric("⏱️ Total Time Spent", f"{total_hours} Hours")
     col3.metric("📅 Total Sessions", total_sessions)
+
+    # --- NEW: LAST SESSION CALLOUT ---
+    if not df_logs.empty:
+        # Sort logs to find the absolute newest one
+        latest_log = df_logs.sort_values(by="log_date", ascending=False).iloc[0]
+        
+        l_date = pd.to_datetime(latest_log['log_date']).strftime('%B %d, %Y')
+        l_mins = int(latest_log.get('minutes', 0))
+        
+        # Safely clean the data in case some fields are empty (NaN)
+        f_surah_raw = "" if pd.isna(latest_log.get('from_surah')) else str(latest_log.get('from_surah')).strip()
+        t_surah_raw = "" if pd.isna(latest_log.get('to_surah')) else str(latest_log.get('to_surah')).strip()
+        f_page = 0 if pd.isna(latest_log.get('from_page')) else int(latest_log.get('from_page'))
+        t_page = 0 if pd.isna(latest_log.get('to_page')) else int(latest_log.get('to_page'))
+        
+        # FIXED: Strip out the number prefix (e.g., "18. Al-Kahf" becomes "Al-Kahf")
+        f_surah = f_surah_raw.split('. ', 1)[1] if '. ' in f_surah_raw else f_surah_raw
+        t_surah = t_surah_raw.split('. ', 1)[1] if '. ' in t_surah_raw else t_surah_raw
+        
+        # Build the dynamic reading span text
+        if not t_surah and t_page == 0:
+            loc_str = f"Surah {f_surah} (Page {f_page})" if f_page > 0 else f"Surah {f_surah}"
+        else:
+            actual_t_surah = t_surah if t_surah else f_surah
+            
+            # Make it read cleanly if it's all within the same Surah
+            if f_surah == actual_t_surah and f_page > 0 and t_page > 0:
+                loc_str = f"Surah {f_surah} (Pages {f_page} to {t_page})"
+            else:
+                start_str = f"Surah {f_surah} (Page {f_page})" if f_page > 0 else f"Surah {f_surah}"
+                end_str = f"Surah {actual_t_surah} (Page {t_page})" if t_page > 0 else f"Surah {actual_t_surah}"
+                loc_str = f"from {start_str} to {end_str}"
+            
+        st.caption(f"🕒 **Last logged session:** {l_date} - {l_mins} min - {loc_str}")
+
     st.markdown("---")
 
     df_active = df_dashboard[(df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])) & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
     if df_active.empty:
         st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
     else:
-        st.subheader("📚 Page-by-Page Tracker")
+        df_active = df_dashboard[(df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])) & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
+    if df_active.empty:
+        st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
+    else:
+        st.subheader("📚 Visual Progress Timeline")
+        st.write("Hover over any segment of the timeline to see exact page details, revision status, and due dates.")
         
-        collapsed_rows = []
-        for surah_name, group in df_active.groupby('Surah', sort=False):
-            full_surah_group = df_dashboard[df_dashboard['Surah'] == surah_name]
-            
-            if full_surah_group['Status'].nunique() == 1:
-                first_row = group.iloc[0].copy()
-                
-                min_page, max_page = group['Page'].min(), group['Page'].max()
-                first_row['Page'] = f"All ({min_page}-{max_page})" if min_page != max_page else str(min_page)
-                
-                min_juz, max_juz = group['Juz'].min(), group['Juz'].max()
-                first_row['Juz'] = f"{min_juz}-{max_juz}" if min_juz != max_juz else str(min_juz)
-                
-                if group['Last Revised'].nunique() > 1:
-                    first_row['Last Revised'] = "Varies"
-                if group['Next Revision Due'].nunique() > 1:
-                    first_row['Next Revision Due'] = "Varies"
-                    
-                collapsed_rows.append(first_row)
-            else:
-                for _, row in group.iterrows():
-                    r = row.copy()
-                    r['Page'] = str(r['Page'])
-                    r['Juz'] = str(r['Juz'])
-                    collapsed_rows.append(r)
-                    
-        display_df = pd.DataFrame(collapsed_rows)
-        display_df = display_df[['Status', 'Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due']]
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
-
+       # We use the FULL dashboard dataframe so the timeline represents the entire Quran
+        chart_df = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
+        
+        # Create an 'End Page' for the rectangles so every single page renders as a continuous block
+        chart_df['Page_End'] = chart_df['Page'] + 1
+        
+        # Clean up the Surah name for the tooltip
+        chart_df['Clean_Surah'] = chart_df['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
+        
+        # --- FIXED 1: Add a dummy variable to force the rectangles to have thickness ---
+        chart_df['Timeline'] = "Quran Progress"
+        
+        # Define the exact colors to match our new Islamic Theme
+        status_domain = [
+            "🟢 Good", 
+            "🟡 Due Soon", 
+            "🟡 Needs Revision", 
+            "🔴 Overdue", 
+            "⏳ Pending (Cat 1)", 
+            "⏳ Pending (Cat 2)", 
+            "⚪ Not Started"
+        ]
+        status_colors = [
+            "#10b981", # Emerald Green
+            "#fde047", # Soft Yellow
+            "#f59e0b", # Orange
+            "#ef4444", # Red
+            "#3b82f6", # Blue
+            "#8b5cf6", # Purple
+            "#1f2937"  # Dark Slate (blends into the background for unstarted pages)
+        ]
+        
+        # Build the horizontal ribbon chart
+        timeline_chart = alt.Chart(chart_df).mark_rect().encode(
+            x=alt.X('Page:Q', scale=alt.Scale(domain=[2, 605]), title="Quran Page Number", axis=alt.Axis(tickCount=10, grid=False)),
+            x2='Page_End:Q',
+            # --- FIXED 1: Map the Y-axis and hide the labels so it just looks like a floating ribbon ---
+            y=alt.Y('Timeline:N', title=None, axis=alt.Axis(labels=False, ticks=False, domain=False)),
+            color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=4)),
+            tooltip=[
+                alt.Tooltip('Clean_Surah:N', title='Surah'),
+                alt.Tooltip('Page:Q', title='Page'),
+                alt.Tooltip('Status:N', title='Status'),
+                alt.Tooltip('Last Revised:N', title='Last Revised'),
+                alt.Tooltip('Next Revision Due:N', title='Due Date')
+            ]
+        ).properties(
+            height=120 
+        ).interactive() 
+        
+        # --- FIXED 2: Tell Streamlit to respect our custom Islamic colors (theme=None) ---
+        st.altair_chart(timeline_chart, use_container_width=True, theme=None)
+        
         st.markdown("---")
         col_pie, col_chart = st.columns(2)
         with col_pie:

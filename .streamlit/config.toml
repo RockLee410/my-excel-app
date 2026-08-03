@@ -1,18 +1,18 @@
 [theme]
-# Tells Streamlit to automatically adjust default charts and widgets to dark mode
+# Forces the underlying widgets to respect the dark aesthetic
 base = "dark"
 
-# The main accent color (swapped to a vibrant, bold red)
-primaryColor = "#ef4444" 
+# Primary Accent (A rich, classic metallic Gold for buttons and highlights)
+primaryColor = "#d4af37" 
 
-# The main background of the app (a deep, rich slate)
-backgroundColor = "#111827"
+# Main Background (A very deep, dark pine/forest green)
+backgroundColor = "#022c22" 
 
-# The background of the sidebar and secondary elements
-secondaryBackgroundColor = "#1f2937"
+# Sidebar & Card Background (A slightly lighter emerald green for contrast)
+secondaryBackgroundColor = "#064e3b" 
 
-# Crisp, off-white text for high readability
-textColor = "#f9fafb"
+# Text Color (A warm, soft off-white/cream that mimics old paper)
+textColor = "#fef3c7" 
 
-# Keeps the font feeling modern and clean
-font = "sans serif"
+# Font (Changes from standard tech text to a more elegant, book-like font)
+font = "serif"
