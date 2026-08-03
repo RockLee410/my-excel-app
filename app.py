@@ -796,50 +796,49 @@ if page == "📊 Dashboard":
         # FIXED: Updated instructions for mobile users
         st.write("Tap on any segment of the timeline to see exact page details, revision status, and due dates.")
         
+        # We use the FULL dashboard dataframe so the timeline represents the entire Quran
         chart_df = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
-        chart_df['Page_End'] = chart_df['Page'] + 1
+        
+        # --- NEW: Convert to a Juz-by-Juz Matrix for Mobile ---
+        # Calculate where each page falls within its specific Juz (e.g., Page 1 to 22)
+        def get_juz_start(juz_num):
+            juz_starts = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582]
+            return juz_starts[int(juz_num) - 1]
+            
+        chart_df['Juz_Start'] = chart_df['Juz'].apply(get_juz_start)
+        chart_df['Relative_Page'] = chart_df['Page'] - chart_df['Juz_Start'] + 1
+        chart_df['Relative_Page_End'] = chart_df['Relative_Page'] + 1
+        
         chart_df['Clean_Surah'] = chart_df['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
-        chart_df['Timeline'] = "Quran Progress"
         
-        status_domain = [
-            "🟢 Good", 
-            "🟡 Due Soon", 
-            "🟡 Needs Revision", 
-            "🔴 Overdue", 
-            "⏳ Pending (Cat 1)", 
-            "⏳ Pending (Cat 2)", 
-            "⚪ Not Started"
-        ]
-        status_colors = [
-            "#10b981", 
-            "#fde047", 
-            "#f59e0b", 
-            "#ef4444", 
-            "#3b82f6", 
-            "#8b5cf6", 
-            "#1f2937"  
-        ]
+        status_domain = ["🟢 Good", "🟡 Due Soon", "🟡 Needs Revision", "🔴 Overdue", "⏳ Pending (Cat 1)", "⏳ Pending (Cat 2)", "⚪ Not Started"]
+        status_colors = ["#10b981", "#fde047", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#1f2937"]
         
-        timeline_chart = alt.Chart(chart_df).mark_rect().encode(
-            x=alt.X('Page:Q', scale=alt.Scale(domain=[2, 605]), title="Quran Page Number", axis=alt.Axis(tickCount=10, grid=False)),
-            x2='Page_End:Q',
-            y=alt.Y('Timeline:N', title=None, axis=alt.Axis(labels=False, ticks=False, domain=False)),
-            color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=4)),
+        # Build a vertical Juz-by-Juz matrix (looks like a Github activity graph)
+        timeline_chart = alt.Chart(chart_df).mark_rect(
+            stroke='#022c22', # Adds a border matching the Islamic background to create a "grid" gap
+            strokeWidth=1.5, 
+            rx=2, # Slightly rounds the block corners
+            ry=2
+        ).encode(
+            x=alt.X('Relative_Page:Q', title="Page within Juz", axis=alt.Axis(labels=False, ticks=False, grid=False)),
+            x2='Relative_Page_End:Q',
+            y=alt.Y('Juz:O', title="Juz", sort=alt.EncodingSortField(field="Juz", order="ascending")),
+            color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=3)),
             tooltip=[
                 alt.Tooltip('Clean_Surah:N', title='Surah'),
-                alt.Tooltip('Page:Q', title='Page'),
+                alt.Tooltip('Juz:O', title='Juz'),
+                alt.Tooltip('Page:Q', title='Overall Page'),
                 alt.Tooltip('Status:N', title='Status'),
                 alt.Tooltip('Last Revised:N', title='Last Revised'),
                 alt.Tooltip('Next Revision Due:N', title='Due Date')
             ]
-        # ... (keep all the encoding exactly the same) ...
         ).properties(
-            height=120,
-            width=2500  # --- NEW: Force the chart to be extremely wide! ---
-        ) 
+            height=600 # Tall enough to comfortably display all 30 rows on a phone
+        )
         
-        # --- FIXED: Turn OFF use_container_width so it doesn't shrink to fit the screen ---
-        st.altair_chart(timeline_chart, use_container_width=False, theme=None)
+        # --- FIXED: We can safely turn use_container_width back on! ---
+        st.altair_chart(timeline_chart, use_container_width=True, theme=None)
 
         st.markdown("---")
         col_pie, col_chart = st.columns(2)
