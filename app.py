@@ -634,7 +634,27 @@ def show_intro_popup():
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
     st.write(f"👤 Logged in as: **{user_email.split('@')[0]}**")
-    if st.button("Logout"):
+    with st.expander("🔑 Change Password"):
+        with st.form("change_pass_form", clear_on_submit=True):
+            new_pw = st.text_input("New Password", type="password", key="side_new_pw")
+            confirm_pw = st.text_input("Confirm New Password", type="password", key="side_conf_pw")
+            submit_pw = st.form_submit_button("Update Password", use_container_width=True)
+            
+            if submit_pw:
+                if len(new_pw) < 6:
+                    st.error("❌ Password must be at least 6 characters long.")
+                elif new_pw != confirm_pw:
+                    st.error("❌ Passwords do not match.")
+                else:
+                    try:
+                        # Supabase updates the password for the currently active session
+                        supabase.auth.update_user({"password": new_pw})
+                        st.toast("✅ Password updated successfully!")
+                        st.success("✅ Password updated!")
+                    except Exception as e:
+                        st.error(f"❌ Failed to update password: {e}")
+
+    if st.button("Logout", use_container_width=True):
         supabase.auth.sign_out()
 
         cookie_manager.delete("qt_access", key="del_access")
