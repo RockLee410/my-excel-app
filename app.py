@@ -960,13 +960,6 @@ if page == "📊 Dashboard":
 
     st.markdown("---")
 
-    # --- NEW: RENDER ACHIEVEMENTS & BADGES ---
-    render_achievements_section(df_logs, df_dashboard, streak, total_hours)
-
-   
-
-    st.markdown("---")
-
     df_active = df_dashboard[(df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])) & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
     if df_active.empty:
         st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
@@ -1086,6 +1079,11 @@ if page == "📊 Dashboard":
                 st.info("👆 Tap any colored block on the timeline above to see page details.")
         else:
             st.info("👆 Tap any colored block on the timeline above to see page details.")
+
+        st.markdown("---")
+        
+        # --- NEW: RENDER ACHIEVEMENTS & BADGES ---
+        render_achievements_section(df_logs, df_dashboard, streak, total_hours)
 
         st.markdown("---")
         col_pie, col_chart = st.columns(2)
