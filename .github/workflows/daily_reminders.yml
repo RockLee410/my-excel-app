@@ -2,8 +2,9 @@ name: Hourly Quran Tracker Reminder Check
 
 on:
   schedule:
+    # Runs at minute 0 of every hour
     - cron: '0 * * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger from GitHub UI for quick testing
 
 jobs:
   run-reminders:
