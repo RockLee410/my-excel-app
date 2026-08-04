@@ -165,7 +165,20 @@ def fetch_priorities_raw():
 def fetch_page_priorities():
     res = supabase.table('page_priorities').select("*").eq("user_name", user_email).execute()
     return res.data if res.data else []
+# --- USER SETTINGS FETCHERS ---
+def fetch_user_settings():
+    res = supabase.table('user_settings').select("*").eq("user_name", user_email).execute()
+    if res.data:
+        return res.data[0]
+    return {"email_reminders": False, "reminder_time": "20:00"}
 
+def save_user_settings(enabled, rem_time):
+    payload = {
+        "user_name": user_email,
+        "email_reminders": enabled,
+        "reminder_time": rem_time
+    }
+    supabase.table('user_settings').upsert(payload).execute()
 raw_priorities = fetch_priorities_raw()
 is_onboarded = not raw_priorities.empty
 df_priorities = raw_priorities[raw_priorities['surah_number'] > 0] if is_onboarded else pd.DataFrame()
@@ -653,7 +666,32 @@ with st.sidebar:
                         st.success("✅ Password updated!")
                     except Exception as e:
                         st.error(f"❌ Failed to update password: {e}")
-
+    # --- NEW: EMAIL REMINDERS EXPANDER ---
+    with st.expander("🔔 Daily Reminders"):
+        current_settings = fetch_user_settings()
+        
+        with st.form("reminder_settings_form"):
+            rem_enabled = st.checkbox("Enable Daily Email Reminders", value=current_settings.get("email_reminders", False))
+            
+            # Format time options in 12-hour AM/PM format
+            time_options = [f"{h:02d}:00" for h in range(24)]
+            time_labels = [datetime.strptime(t, "%H:%M").strftime("%I:00 %p") for t in time_options]
+            
+            curr_time_str = current_settings.get("reminder_time", "20:00")
+            curr_index = time_options.index(curr_time_str) if curr_time_str in time_options else 20
+            
+            selected_time_label = st.selectbox("Preferred Time", options=time_labels, index=curr_index)
+            selected_time = time_options[time_labels.index(selected_time_label)]
+            
+            submit_rem = st.form_submit_button("Save Reminder Settings", use_container_width=True)
+            
+            if submit_rem:
+                try:
+                    save_user_settings(rem_enabled, selected_time)
+                    st.toast("✅ Reminder settings saved!")
+                    st.success("✅ Settings saved!")
+                except Exception as e:
+                    st.error(f"❌ Could not save settings: {e}")
     if st.button("Logout", use_container_width=True):
         supabase.auth.sign_out()
 
@@ -686,7 +724,96 @@ if not is_onboarded:
     else:
         render_priority_manager(onboarding=True)
     st.stop()
+# --- GAMIFICATION BADGE ENGINE ---
+def render_achievements_section(df_logs, df_dashboard, streak, total_hours):
+    st.subheader("🏅 Achievements & Milestones")
 
+    total_confident = df_dashboard[df_dashboard['Priority'] == '1 - Confident']['Page'].nunique()
+    total_sessions = len(df_logs)
+
+    badges = [
+        {
+            "title": "First Step",
+            "icon": "🌱",
+            "desc": "Logged your 1st session",
+            "unlocked": total_sessions >= 1,
+            "progress": f"{min(total_sessions, 1)}/1 session"
+        },
+        {
+            "title": "Week Warrior",
+            "icon": "🔥",
+            "desc": "7-day streak reached",
+            "unlocked": streak >= 7,
+            "progress": f"{min(streak, 7)}/7 days"
+        },
+        {
+            "title": "Monthly Master",
+            "icon": "⚡",
+            "desc": "30-day streak reached",
+            "unlocked": streak >= 30,
+            "progress": f"{min(streak, 30)}/30 days"
+        },
+        {
+            "title": "Time Dedicated",
+            "icon": "⏱️",
+            "desc": "10+ Hours logged",
+            "unlocked": total_hours >= 10,
+            "progress": f"{min(total_hours, 10.0)}/10 hrs"
+        },
+        {
+            "title": "Quarter Mark",
+            "icon": "📐",
+            "desc": "151 pages confident",
+            "unlocked": total_confident >= 151,
+            "progress": f"{min(total_confident, 151)}/151 pgs"
+        },
+        {
+            "title": "Halfway Mark",
+            "icon": "🏛️",
+            "desc": "302 pages confident",
+            "unlocked": total_confident >= 302,
+            "progress": f"{min(total_confident, 302)}/302 pgs"
+        },
+        {
+            "title": "100-Day Legend",
+            "icon": "👑",
+            "desc": "100-day streak reached",
+            "unlocked": streak >= 100,
+            "progress": f"{min(streak, 100)}/100 days"
+        },
+        {
+            "title": "Hafiz Level",
+            "icon": "🌟",
+            "desc": "604 pages confident",
+            "unlocked": total_confident >= 604,
+            "progress": f"{total_confident}/604 pgs"
+        }
+    ]
+
+    # Render badges in a 4-column responsive grid
+    cols = st.columns(4)
+    for idx, badge in enumerate(badges):
+        col = cols[idx % 4]
+        with col:
+            if badge["unlocked"]:
+                card_html = f"""
+                <div style="background-color: rgba(212, 175, 55, 0.1); border: 1.5px solid #d4af37; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 10px;">
+                    <div style="font-size: 1.8rem;">{badge['icon']}</div>
+                    <div style="font-weight: bold; color: #d4af37; font-size: 0.9rem; margin-top: 2px;">{badge['title']}</div>
+                    <div style="font-size: 0.72rem; color: #e5e7eb; margin-top: 1px;">{badge['desc']}</div>
+                    <div style="font-size: 0.68rem; color: #10b981; font-weight: bold; margin-top: 4px;">Unlocked!</div>
+                </div>
+                """
+            else:
+                card_html = f"""
+                <div style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; text-align: center; opacity: 0.55; margin-bottom: 10px;">
+                    <div style="font-size: 1.8rem; filter: grayscale(100%);">{badge['icon']}</div>
+                    <div style="font-weight: bold; color: #9ca3af; font-size: 0.9rem; margin-top: 2px;">{badge['title']}</div>
+                    <div style="font-size: 0.72rem; color: #6b7280; margin-top: 1px;">{badge['desc']}</div>
+                    <div style="font-size: 0.68rem; color: #d1d5db; margin-top: 4px;">🔒 {badge['progress']}</div>
+                </div>
+                """
+            st.markdown(card_html, unsafe_allow_html=True)
 # --- PAGE 1: DASHBOARD ---
 if page == "📊 Dashboard":
     head_col1, head_col2 = st.columns([3, 1])
@@ -830,6 +957,11 @@ if page == "📊 Dashboard":
     col1.metric("🔥 Current Streak", f"{streak} Days")
     col2.metric("⏱️ Total Time Spent", f"{total_hours} Hours")
     col3.metric("📅 Total Sessions", total_sessions)
+
+    st.markdown("---")
+
+    # --- NEW: RENDER ACHIEVEMENTS & BADGES ---
+    render_achievements_section(df_logs, df_dashboard, streak, total_hours)
 
    
 
