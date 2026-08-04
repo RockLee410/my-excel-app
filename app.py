@@ -686,7 +686,39 @@ if page == "📊 Dashboard":
     st.markdown(f"### 🏆 Memorization Progress: {int(progress_pct * 100)}%")
     st.progress(progress_pct, text=f"{total_confident} out of 604 pages confidently memorized")
     st.markdown("---")
+    # --- NEW: LAST SESSION CALLOUT ---
+    if not df_logs.empty:
+        # Sort logs to find the absolute newest one
+        latest_log = df_logs.sort_values(by="log_date", ascending=False).iloc[0]
     
+        l_date = pd.to_datetime(latest_log['log_date']).strftime('%B %d, %Y')
+        l_mins = int(latest_log.get('minutes', 0))
+    
+        # Safely clean the data in case some fields are empty (NaN)
+        f_surah_raw = "" if pd.isna(latest_log.get('from_surah')) else str(latest_log.get('from_surah')).strip()
+        t_surah_raw = "" if pd.isna(latest_log.get('to_surah')) else str(latest_log.get('to_surah')).strip()
+        f_page = 0 if pd.isna(latest_log.get('from_page')) else int(latest_log.get('from_page'))
+        t_page = 0 if pd.isna(latest_log.get('to_page')) else int(latest_log.get('to_page'))
+    
+        # FIXED: Strip out the number prefix (e.g., "18. Al-Kahf" becomes "Al-Kahf")
+        f_surah = f_surah_raw.split('. ', 1)[1] if '. ' in f_surah_raw else f_surah_raw
+        t_surah = t_surah_raw.split('. ', 1)[1] if '. ' in t_surah_raw else t_surah_raw
+    
+        # Build the dynamic reading span text
+        if not t_surah and t_page == 0:
+            loc_str = f"Surah {f_surah} (Page {f_page})" if f_page > 0 else f"Surah {f_surah}"
+        else:
+            actual_t_surah = t_surah if t_surah else f_surah
+    
+            # Make it read cleanly if it's all within the same Surah
+            if f_surah == actual_t_surah and f_page > 0 and t_page > 0:
+                loc_str = f"Surah {f_surah} (Pages {f_page} to {t_page})"
+            else:
+                start_str = f"Surah {f_surah} (Page {f_page})" if f_page > 0 else f"Surah {f_surah}"
+                end_str = f"Surah {actual_t_surah} (Page {t_page})" if t_page > 0 else f"Surah {actual_t_surah}"
+                loc_str = f"from {start_str} to {end_str}"
+    
+        st.caption(f"🕒 **Last logged session:** {l_date} - {l_mins} min - {loc_str}")
     # --- NEXT ON TO-DO LIST ---
     df_actions = df_dashboard[(df_dashboard['Status'] != '🟢 Good') & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
     if not df_actions.empty:
@@ -778,39 +810,7 @@ if page == "📊 Dashboard":
     col2.metric("⏱️ Total Time Spent", f"{total_hours} Hours")
     col3.metric("📅 Total Sessions", total_sessions)
 
-    # --- NEW: LAST SESSION CALLOUT ---
-    if not df_logs.empty:
-        # Sort logs to find the absolute newest one
-        latest_log = df_logs.sort_values(by="log_date", ascending=False).iloc[0]
-        
-        l_date = pd.to_datetime(latest_log['log_date']).strftime('%B %d, %Y')
-        l_mins = int(latest_log.get('minutes', 0))
-        
-        # Safely clean the data in case some fields are empty (NaN)
-        f_surah_raw = "" if pd.isna(latest_log.get('from_surah')) else str(latest_log.get('from_surah')).strip()
-        t_surah_raw = "" if pd.isna(latest_log.get('to_surah')) else str(latest_log.get('to_surah')).strip()
-        f_page = 0 if pd.isna(latest_log.get('from_page')) else int(latest_log.get('from_page'))
-        t_page = 0 if pd.isna(latest_log.get('to_page')) else int(latest_log.get('to_page'))
-        
-        # FIXED: Strip out the number prefix (e.g., "18. Al-Kahf" becomes "Al-Kahf")
-        f_surah = f_surah_raw.split('. ', 1)[1] if '. ' in f_surah_raw else f_surah_raw
-        t_surah = t_surah_raw.split('. ', 1)[1] if '. ' in t_surah_raw else t_surah_raw
-        
-        # Build the dynamic reading span text
-        if not t_surah and t_page == 0:
-            loc_str = f"Surah {f_surah} (Page {f_page})" if f_page > 0 else f"Surah {f_surah}"
-        else:
-            actual_t_surah = t_surah if t_surah else f_surah
-            
-            # Make it read cleanly if it's all within the same Surah
-            if f_surah == actual_t_surah and f_page > 0 and t_page > 0:
-                loc_str = f"Surah {f_surah} (Pages {f_page} to {t_page})"
-            else:
-                start_str = f"Surah {f_surah} (Page {f_page})" if f_page > 0 else f"Surah {f_surah}"
-                end_str = f"Surah {actual_t_surah} (Page {t_page})" if t_page > 0 else f"Surah {actual_t_surah}"
-                loc_str = f"from {start_str} to {end_str}"
-            
-        st.caption(f"🕒 **Last logged session:** {l_date} - {l_mins} min - {loc_str}")
+   
 
     st.markdown("---")
 
