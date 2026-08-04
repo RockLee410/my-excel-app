@@ -1,5 +1,6 @@
 import os
-from datetime import datetime, date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from supabase import create_client
 import resend
 
@@ -15,14 +16,16 @@ if not SUPABASE_URL or not SUPABASE_KEY or not RESEND_API_KEY:
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 resend.api_key = RESEND_API_KEY
 
-# 2. Get current hour in UTC (HH:00 format) and current date
-now = datetime.utcnow()
-current_hour_str = now.strftime("%H:00")
-today_str = date.today().strftime("%Y-%m-%d")
+# 2. Get current time & date specifically in Perth, WA (AWST = UTC+8)
+perth_tz = ZoneInfo("Australia/Perth")
+now_perth = datetime.now(perth_tz)
 
-print(f"⏰ Running reminder check for UTC hour: {current_hour_str}, Date: {today_str}")
+current_hour_str = now_perth.strftime("%H:00")
+today_str = now_perth.strftime("%Y-%m-%d")
 
-# 3. Query user_settings for users who want emails at THIS hour
+print(f"⏰ Running reminder check for Perth Time: {current_hour_str}, Date: {today_str}")
+
+# 3. Query user_settings for users who want emails at THIS Perth hour
 try:
     res_settings = supabase.table("user_settings") \
         .select("*") \
@@ -31,12 +34,12 @@ try:
         .execute()
     
     users_due = res_settings.data if res_settings.data else []
-    print(f"👥 Found {len(users_due)} user(s) scheduled for this hour.")
+    print(f"👥 Found {len(users_due)} user(s) scheduled for {current_hour_str} AWST.")
 
     for setting in users_due:
         email = setting["user_name"]
         
-        # 4. Check if the user has ALREADY logged a session today
+        # 4. Check if the user has ALREADY logged a session today (Perth date)
         res_logs = supabase.table("daily_logs") \
             .select("id") \
             .eq("user_name", email) \
@@ -46,7 +49,7 @@ try:
         has_logged_today = len(res_logs.data) > 0 if res_logs.data else False
         
         if not has_logged_today:
-            print(f"📧 User {email} has NOT logged today. Sending reminder...")
+            print(f"📧 User {email} has NOT logged today ({today_str}). Sending reminder...")
             
             # 5. Dispatch the email via Resend
             params = {
@@ -56,7 +59,7 @@ try:
                 "html": f"""
                 <div style="font-family: sans-serif; background-color: #022c22; color: #ffffff; padding: 30px; border-radius: 12px; max-width: 500px; margin: auto;">
                     <h2 style="color: #d4af37; margin-top: 0;">Assalamu Alaikum! 🌙</h2>
-                    <p style="font-size: 16px; line-color: 1.5; color: #e5e7eb;">
+                    <p style="font-size: 16px; line-height: 1.5; color: #e5e7eb;">
                         Consistency is the secret to retaining the Quran. You haven't logged your revision session yet today!
                     </p>
                     <p style="font-size: 15px; color: #d1d5db;">
