@@ -2,9 +2,8 @@ name: Hourly Quran Tracker Reminder Check
 
 on:
   schedule:
-    # Runs at minute 0 of every hour
     - cron: '0 * * * *'
-  workflow_dispatch: # Allows manual trigger from GitHub UI for quick testing
+  workflow_dispatch:
 
 jobs:
   run-reminders:
@@ -12,10 +11,10 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
