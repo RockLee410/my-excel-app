@@ -766,19 +766,20 @@ if page == "📊 Dashboard":
             else:
                 st.toast("❌ Could not find the Surah in the database.")
 
+        # --- NEXT ON TO-DO LIST BUTTONS ---
         if current_cat == "2 - Needs Revision":
             col_b1, col_b2 = st.columns(2)
             with col_b1:
-                st.button(f"🟢 I am confident of Surah {surah_str}", on_click=upgrade_full_surah, args=(surah_str, "1 - Confident"), use_container_width=True)
+                st.button(f"🟢 I am confident of Surah {surah_name}", on_click=upgrade_full_surah, args=(surah_str, "1 - Confident"), use_container_width=True)
             with col_b2:
-                st.button(f"🟢 I'm confident of page {page_val} of {surah_str}", on_click=upgrade_single_page, args=(surah_name, page_val, "1 - Confident"), use_container_width=True)
+                st.button(f"🟢 I'm confident of page {page_val} of Surah {surah_name}", on_click=upgrade_single_page, args=(surah_name, page_val, "1 - Confident"), use_container_width=True)
                 
         elif current_cat == "3 - Not Memorized":
             col_b1, col_b2 = st.columns(2)
             with col_b1:
-                st.button(f"🟡 Surah {surah_str} needs revision", on_click=upgrade_full_surah, args=(surah_str, "2 - Needs Revision"), use_container_width=True)
+                st.button(f"🟡 Surah {surah_name} needs revision", on_click=upgrade_full_surah, args=(surah_str, "2 - Needs Revision"), use_container_width=True)
             with col_b2:
-                st.button(f"🟡 page {page_val} of {surah_str} need revision", on_click=upgrade_single_page, args=(surah_name, page_val, "2 - Needs Revision"), use_container_width=True)
+                st.button(f"🟡 Page {page_val} of Surah {surah_name} needs revision", on_click=upgrade_single_page, args=(surah_name, page_val, "2 - Needs Revision"), use_container_width=True)
                 
     else:
         st.success("🎉 **NEXT ON TO-DO LIST:** All caught up! No pages are due for revision.")
@@ -990,46 +991,147 @@ if page == "📊 Dashboard":
 
 # --- PAGE 2: LOG SESSION ---
 elif page == "📝 Log Session":
-    st.title("📝 Log Today's Revision")
+    st.title("📝 Log Your Revision")
     
     active_surah_options = [""] + get_active_surah_options(df_priorities)
     
-    with st.form("daily_log_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            log_date = st.date_input("Date", date.today())
-            from_surah = st.selectbox("From Surah*", options=active_surah_options)
-            from_page = st.number_input("From Page (Optional)", min_value=0, max_value=604, value=0, step=1)
-        with col2:
-            minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5)
-            to_surah = st.selectbox("To Surah (Optional)", options=[""] + active_surah_options)
-            to_page = st.number_input("To Page (Optional)", min_value=0, max_value=604, value=0, step=1)
+    # Split into two tabs: Single Entry vs Bulk Upload
+    tab_single, tab_bulk = st.tabs(["📝 Log Single Session", "📤 Bulk Import from Excel"])
+    
+    # --- TAB 1: SINGLE LOG FORM ---
+    with tab_single:
+        with st.form("daily_log_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                log_date = st.date_input("Date", date.today())
+                from_surah = st.selectbox("From Surah*", options=active_surah_options)
+                from_page = st.number_input("From Page (Optional)", min_value=0, max_value=604, value=0, step=1)
+            with col2:
+                minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5)
+                to_surah = st.selectbox("To Surah (Optional)", options=[""] + active_surah_options)
+                to_page = st.number_input("To Page (Optional)", min_value=0, max_value=604, value=0, step=1)
+            
+            notes = st.text_input("Notes / Specific Verses")
+            submitted = st.form_submit_button("💾 Save Session to Cloud")
+            
+            if submitted:
+                if to_page > 0 and from_page > 0 and to_page < from_page:
+                    st.error("❌ Validation Error: 'To Page' cannot be smaller than 'From Page'.")
+                elif minutes > 300:
+                    st.error("❌ Validation Error: Session exceeds 5 hours (300 mins).")
+                elif not from_surah:
+                    st.error("❌ Validation Error: Please select a 'From Surah'.")
+                else:
+                    new_log = {
+                        "user_name": user_email,
+                        "log_date": str(log_date),
+                        "from_surah": from_surah if from_surah else None,
+                        "to_surah": to_surah if to_surah else None,
+                        "from_page": int(from_page) if from_page and from_page > 0 else None,
+                        "to_page": int(to_page) if to_page and to_page > 0 else None,
+                        "minutes": minutes,
+                        "notes": notes
+                    }
+                    supabase.table('daily_logs').insert(new_log).execute()
+                    
+                    st.toast("✅ Log saved successfully!")
+                    st.balloons()
+
+    # --- TAB 2: BULK EXCEL IMPORTER ---
+    with tab_bulk:
+        st.subheader("📤 Import Past History from Excel")
+        st.write("Upload your existing Quran Tracker Excel or CSV file to instantly transfer your previous logs to your cloud account.")
+        # --- SAMPLE TEMPLATE GENERATOR ---
+        import io
+        template_df = pd.DataFrame([
+            {
+                "Date": "2026-08-01",
+                "From Surah": "18. Al-Kahf",
+                "To Surah": "18. Al-Kahf",
+                "From Page": 293,
+                "To Page": 295,
+                "Minutes Spent": 20,
+                "Notes": "Example log entry"
+            }
+        ])
         
-        notes = st.text_input("Notes / Specific Verses")
-        submitted = st.form_submit_button("💾 Save Session to Cloud")
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            template_df.to_excel(writer, index=False, sheet_name='Logs')
+            
+        st.download_button(
+            label="📥 Download Excel Template",
+            data=buffer.getvalue(),
+            file_name="Quran_Tracker_Import_Template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        st.markdown("---")
+        uploaded_file = st.file_uploader("Upload Excel (.xlsx) or CSV file", type=["xlsx", "csv"])
         
-        if submitted:
-            if to_page > 0 and from_page > 0 and to_page < from_page:
-                st.error("❌ Validation Error: 'To Page' cannot be smaller than 'From Page'.")
-            elif minutes > 300:
-                st.error("❌ Validation Error: Session exceeds 5 hours (300 mins). Please enter a realistic time to keep your data accurate.")
-            elif not from_surah:
-                st.error("❌ Validation Error: Please select a 'From Surah'.")
-            else:
-                new_log = {
-                    "user_name": user_email,
-                    "log_date": str(log_date),
-                    "from_surah": from_surah if from_surah else None,
-                    "to_surah": to_surah if to_surah else None,
-                    "from_page": int(from_page) if from_page and from_page > 0 else None,
-                    "to_page": int(to_page) if to_page and to_page > 0 else None,
-                    "minutes": minutes,
-                    "notes": notes
-                }
-                supabase.table('daily_logs').insert(new_log).execute()
+        if uploaded_file:
+            try:
+                # Read Excel or CSV
+                if uploaded_file.name.endswith('.csv'):
+                    import_df = pd.read_csv(uploaded_file)
+                else:
+                    import_df = pd.read_excel(uploaded_file)
                 
-                st.toast("✅ Log saved successfully!")
-                st.balloons()
+                st.write("📋 **Preview of Data to Import:**")
+                st.dataframe(import_df.head(10), use_container_width=True)
+                
+                if st.button("🚀 Import All Logs to Cloud", type="primary"):
+                    rows_to_insert = []
+                    
+                    for _, row in import_df.iterrows():
+                        # Standardize column headers (flexible column matching)
+                        row_dict = {str(k).strip().lower(): v for k, v in row.to_dict().items()}
+                        
+                        # Helper function to extract value cleanly
+                        def get_col(possible_names, is_int=False):
+                            for name in possible_names:
+                                if name in row_dict and pd.notna(row_dict[name]):
+                                    val = row_dict[name]
+                                    if is_int:
+                                        try: return int(float(val))
+                                        except: return None
+                                    return str(val).strip()
+                            return None
+
+                        # Extract fields
+                        raw_date = get_col(['log_date', 'date', 'log date'])
+                        if not raw_date:
+                            continue  # Skip rows without a date
+                            
+                        formatted_date = pd.to_datetime(raw_date).strftime('%Y-%m-%d')
+                        f_surah = get_col(['from_surah', 'from surah', 'surah', 'from'])
+                        t_surah = get_col(['to_surah', 'to surah', 'to'])
+                        f_page = get_col(['from_page', 'from page', 'page start', 'start page'], is_int=True)
+                        t_page = get_col(['to_page', 'to page', 'page end', 'end page'], is_int=True)
+                        mins = get_col(['minutes', 'minutes spent', 'mins', 'time'], is_int=True) or 15
+                        nts = get_col(['notes', 'note', 'comments'])
+
+                        rows_to_insert.append({
+                            "user_name": user_email,
+                            "log_date": formatted_date,
+                            "from_surah": f_surah,
+                            "to_surah": t_surah,
+                            "from_page": f_page,
+                            "to_page": t_page,
+                            "minutes": mins,
+                            "notes": nts
+                        })
+
+                    if rows_to_insert:
+                        supabase.table('daily_logs').insert(rows_to_insert).execute()
+                        st.success(f"🎉 Successfully imported {len(rows_to_insert)} session logs!")
+                        st.balloons()
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error("❌ Could not parse any valid rows from the file. Please check your column headers.")
+                        
+            except Exception as e:
+                st.error(f"❌ Failed to parse file: {e}")
 
 # --- PAGE 3: Next on The To-Do List  ---
 elif page == "📋 Next on The To-Do List":
