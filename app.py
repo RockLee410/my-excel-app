@@ -62,8 +62,19 @@ def get_juz_page_range(juz_num):
     return start, end
 
 # --- STREAMLIT UI SETUP ---
-st.set_page_config(page_title="Quran Tracker Cloud", layout="wide", initial_sidebar_state="expanded")
-
+st.set_page_config(
+    page_title="Quran Tracker Cloud", 
+    page_icon="logo.svg", 
+    layout="wide", 
+    initial_sidebar_state="collapsed"
+)
+# Force iOS Safari to use logo.svg for "Add to Home Screen"
+st.markdown(
+    """
+    <link rel="apple-touch-icon" href="logo.svg">
+    """,
+    unsafe_allow_html=True
+)
 # --- ISLAMIC THEME CSS ---
 st.markdown("""
 <style>
@@ -668,6 +679,7 @@ def show_intro_popup():
 
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
+    st.image("logo.svg", width=110)
     st.write(f"👤 Logged in as: **{user_email.split('@')[0]}**")
     with st.expander("🔑 Change Password"):
         with st.form("change_pass_form", clear_on_submit=True):
