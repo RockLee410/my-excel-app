@@ -319,6 +319,28 @@ def build_dashboard_rows(df_logs, df_priorities):
         for _, row in df_priorities.iterrows():
             priority_lookup[row['surah_name']] = row['category']
 
+    # --- DYNAMIC REVISION CYCLE CALCULATION ---
+    # First pass: Count total confident pages across all 604 pages
+    confident_pages_count = 0
+    for s in SURAH_DATA:
+        base_priority = priority_lookup.get(s[1], "3 - Not Memorized")
+        for p in range(s[2], s[3] + 1):
+            override_priority = get_page_priority(s[1], p)
+            final_prio = override_priority if override_priority else base_priority
+            if s[1] == "Al-Fatihah":
+                final_prio = "1 - Confident"
+            if final_prio == "1 - Confident":
+                confident_pages_count += 1
+
+    # Determine revision cycle days based on % confident (out of 604 total pages)
+    # 75% = 453 pages | 50% = 302 pages
+    if confident_pages_count >= 453:
+        cycle_days = 30
+    elif confident_pages_count >= 302:
+        cycle_days = 21
+    else:
+        cycle_days = 14
+
     rows = []
     today = date.today()
     for s in SURAH_DATA:
@@ -348,11 +370,11 @@ def build_dashboard_rows(df_logs, df_priorities):
                 next_due = ""
             else:
                 days_since = (today - last_rev).days
-                next_due = last_rev + timedelta(days=14)
-                if days_since > 14:
+                next_due = last_rev + timedelta(days=cycle_days)
+                if days_since > cycle_days:
                     status = "🔴 Overdue"
                     score = 100000 + p
-                elif days_since >= 12:
+                elif days_since >= (cycle_days - 2):
                     status = "🟡 Due Soon"
                     score = 200000 + p
                 else:
