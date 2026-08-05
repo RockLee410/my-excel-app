@@ -693,7 +693,6 @@ def show_intro_popup():
 
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
-    st.image("logo.png", width=110)
     st.write(f"👤 Logged in as: **{user_email.split('@')[0]}**")
     with st.expander("🔑 Change Password"):
         with st.form("change_pass_form", clear_on_submit=True):
@@ -804,9 +803,9 @@ def render_achievements_section(df_logs, df_dashboard, streak, total_hours):
         {
             "title": "Time Dedicated",
             "icon": "⏱️",
-            "desc": "10+ Hours logged",
-            "unlocked": total_hours >= 10,
-            "progress": f"{min(total_hours, 10.0)}/10 hrs"
+            "desc": "50+ Hours logged",
+            "unlocked": total_hours >= 50,
+            "progress": f"{min(total_hours, 50.0)}/50 hrs"
         },
         {
             "title": "Quarter Mark",
