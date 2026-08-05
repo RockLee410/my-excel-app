@@ -1,3 +1,4 @@
+import base64
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
@@ -5,6 +6,8 @@ from datetime import date, timedelta, datetime
 import altair as alt
 import extra_streamlit_components as stx
 import time
+
+
 
 # --- DATA: Fully Expanded 114 Surahs ---
 SURAH_DATA = [
@@ -62,19 +65,30 @@ def get_juz_page_range(juz_num):
     return start, end
 
 # --- STREAMLIT UI SETUP ---
+# Helper to encode local PNG to Base64 for iOS Safari
+def get_base64_image(file_path):
+    try:
+        with open(file_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except Exception:
+        return ""
+
+logo_b64 = get_base64_image("logo.png")
+
 st.set_page_config(
     page_title="Quran Tracker Cloud", 
-    page_icon="logo.svg", 
+    page_icon="logo.png", 
     layout="wide", 
     initial_sidebar_state="collapsed"
 )
-# Force iOS Safari to use logo.svg for "Add to Home Screen"
-st.markdown(
-    """
-    <link rel="apple-touch-icon" href="logo.svg">
-    """,
-    unsafe_allow_html=True
-)
+# Inject Base64 PNG directly so iOS Safari can read it instantly
+if logo_b64:
+    st.markdown(
+        f"""
+        <link rel="apple-touch-icon" href="data:image/png;base64,{logo_b64}">
+        """,
+        unsafe_allow_html=True
+    )
 # --- ISLAMIC THEME CSS ---
 st.markdown("""
 <style>
@@ -679,7 +693,7 @@ def show_intro_popup():
 
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
-    st.image("logo.svg", width=110)
+    st.image("logo.png", width=110)
     st.write(f"👤 Logged in as: **{user_email.split('@')[0]}**")
     with st.expander("🔑 Change Password"):
         with st.form("change_pass_form", clear_on_submit=True):
