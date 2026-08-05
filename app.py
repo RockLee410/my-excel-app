@@ -422,6 +422,43 @@ def build_dashboard_rows(df_logs, df_priorities):
             })
 
     return pd.DataFrame(rows)
+def calculate_user_streaks(df_logs):
+    if df_logs.empty:
+        return 0, 0
+
+    # Extract unique, sorted dates
+    dates = sorted(pd.to_datetime(df_logs['log_date']).dt.date.unique())
+    if not dates:
+        return 0, 0
+
+    today = date.today()
+
+    # 1. Calculate Longest Streak (Max Streak ever)
+    max_streak = 1
+    current_run = 1
+    for i in range(1, len(dates)):
+        if (dates[i] - dates[i - 1]).days == 1:
+            current_run += 1
+        elif (dates[i] - dates[i - 1]).days > 1:
+            current_run = 1
+        if current_run > max_streak:
+            max_streak = current_run
+
+    # 2. Calculate Current Active Streak
+    latest_date = dates[-1]
+    days_since_latest = (today - latest_date).days
+
+    if days_since_latest > 1:
+        current_streak = 0  # Streak broken
+    else:
+        current_streak = 1
+        for i in range(len(dates) - 1, 0, -1):
+            if (dates[i] - dates[i - 1]).days == 1:
+                current_streak += 1
+            else:
+                break
+
+    return current_streak, max_streak
 
 def render_priority_manager(onboarding=False):
     def apply_page_range_priority(start_p, end_p, priority):
@@ -771,8 +808,9 @@ if not is_onboarded:
     else:
         render_priority_manager(onboarding=True)
     st.stop()
+
 # --- GAMIFICATION BADGE ENGINE ---
-def render_achievements_section(df_logs, df_dashboard, streak, total_hours):
+def render_achievements_section(df_logs, df_dashboard, max_streak, total_hours):
     st.subheader("🏅 Achievements & Milestones")
 
     total_confident = df_dashboard[df_dashboard['Priority'] == '1 - Confident']['Page'].nunique()
@@ -790,22 +828,22 @@ def render_achievements_section(df_logs, df_dashboard, streak, total_hours):
             "title": "Week Warrior",
             "icon": "🔥",
             "desc": "7-day streak reached",
-            "unlocked": streak >= 7,
-            "progress": f"{min(streak, 7)}/7 days"
+            "unlocked": max_streak >= 7,
+            "progress": f"{min(max_streak, 7)}/7 days"
         },
         {
             "title": "Monthly Master",
             "icon": "⚡",
             "desc": "30-day streak reached",
-            "unlocked": streak >= 30,
-            "progress": f"{min(streak, 30)}/30 days"
+            "unlocked": max_streak >= 30,
+            "progress": f"{min(max_streak, 30)}/30 days"
         },
         {
             "title": "Time Dedicated",
             "icon": "⏱️",
-            "desc": "50+ Hours logged",
-            "unlocked": total_hours >= 50,
-            "progress": f"{min(total_hours, 50.0)}/50 hrs"
+            "desc": "10+ Hours logged",
+            "unlocked": total_hours >= 10,
+            "progress": f"{min(total_hours, 10.0)}/10 hrs"
         },
         {
             "title": "Quarter Mark",
@@ -825,8 +863,8 @@ def render_achievements_section(df_logs, df_dashboard, streak, total_hours):
             "title": "100-Day Legend",
             "icon": "👑",
             "desc": "100-day streak reached",
-            "unlocked": streak >= 100,
-            "progress": f"{min(streak, 100)}/100 days"
+            "unlocked": max_streak >= 100,
+            "progress": f"{min(max_streak, 100)}/100 days"
         },
         {
             "title": "Hafiz Level",
@@ -861,6 +899,7 @@ def render_achievements_section(df_logs, df_dashboard, streak, total_hours):
                 </div>
                 """
             st.markdown(card_html, unsafe_allow_html=True)
+
 # --- PAGE 1: DASHBOARD ---
 if page == "📊 Dashboard":
     head_col1, head_col2 = st.columns([3, 1])
@@ -982,26 +1021,11 @@ if page == "📊 Dashboard":
     total_sessions = len(df_logs)
     total_hours = round(df_logs['minutes'].sum() / 60, 1) if not df_logs.empty else 0
 
-    streak = 0
-    if not df_logs.empty:
-        df_logs_work = df_logs.copy()
-        df_logs_work['log_date'] = pd.to_datetime(df_logs_work['log_date']).dt.date
-        unique_dates = sorted(df_logs_work['log_date'].unique(), reverse=True)
-        today = date.today()
-        if today in unique_dates or (today - timedelta(days=1)) in unique_dates:
-            current = today if today in unique_dates else today - timedelta(days=1)
-            streak = 1
-            for d in unique_dates:
-                if d == current:
-                    continue
-                if d == current - timedelta(days=1):
-                    streak += 1
-                    current = d
-                else:
-                    break
+    # Calculate both active and maximum streak
+    current_streak, max_streak = calculate_user_streaks(df_logs)
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("🔥 Current Streak", f"{streak} Days")
+    col1.metric("🔥 Current Streak", f"{current_streak} Days")
     col2.metric("⏱️ Total Time Spent", f"{total_hours} Hours")
     col3.metric("📅 Total Sessions", total_sessions)
 
@@ -1130,7 +1154,7 @@ if page == "📊 Dashboard":
         st.markdown("---")
         
         # --- NEW: RENDER ACHIEVEMENTS & BADGES ---
-        render_achievements_section(df_logs, df_dashboard, streak, total_hours)
+        render_achievements_section(df_logs, df_dashboard, max_streak, total_hours)
 
         st.markdown("---")
         col_pie, col_chart = st.columns(2)

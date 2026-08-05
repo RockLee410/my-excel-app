@@ -66,7 +66,7 @@ try:
                         Take just 10–15 minutes now to protect your memorization and keep your streak strong.
                     </p>
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="https://your-streamlit-app-url.streamlit.app" 
+                        <a href="https://my-quran-tracker.streamlit.app" 
                            style="background-color: #d4af37; color: #022c22; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
                            📖 Open Quran Tracker
                         </a>
