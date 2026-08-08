@@ -6,7 +6,7 @@ from datetime import date, timedelta, datetime
 import altair as alt
 import extra_streamlit_components as stx
 import time
-
+import streamlit.components.v1 as components
 
 
 # --- DATA: Fully Expanded 114 Surahs ---
@@ -140,18 +140,40 @@ if st.session_state["user"] is None and qt_refresh:
         cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date, key="set_refresh_auto")
     except Exception:
         pass
-# 1. Catch password reset code from the email link
-if "code" in st.query_params:
+# --- 1. JAVASCRIPT HASH CONVERTER (For Default Supabase Links) ---
+components.html(
+    """
+    <script>
+    const parentUrl = window.parent.location.href;
+    if (parentUrl.includes('#access_token=')) {
+        const hash = window.parent.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+        
+        if (type === 'recovery' && accessToken) {
+            window.parent.location.href = window.parent.location.origin + window.parent.location.pathname + '?access_token=' + accessToken + '&refresh_token=' + refreshToken;
+        }
+    }
+    </script>
+    """,
+    height=0,
+)
+
+# --- 2. CATCH ACCESS TOKEN & AUTHENTICATE ---
+if "access_token" in st.query_params:
     try:
-        auth_code = st.query_params["code"]
-        res = supabase.auth.exchange_code_for_session({"auth_code": auth_code})
+        access_token = st.query_params["access_token"]
+        refresh_token = st.query_params.get("refresh_token", "")
+        res = supabase.auth.set_session(access_token, refresh_token)
         st.session_state["user"] = res.user
         st.session_state["is_resetting_password"] = True
-        st.query_params.clear()  # Clear query params from browser URL
+        st.query_params.clear()
     except Exception as e:
         st.error(f"❌ Reset link expired or invalid: {e}")
 
-# 2. Render Set New Password Screen
+# --- 3. RENDER SET NEW PASSWORD SCREEN ---
 def render_reset_password_screen():
     st.title("🔑 Create New Password")
     st.write("Please enter your new password below.")
@@ -177,7 +199,6 @@ def render_reset_password_screen():
                 except Exception as e:
                     st.error(f"❌ Could not update password: {e}")
 
-# 3. Intercept flow if resetting password
 if st.session_state.get("is_resetting_password", False):
     render_reset_password_screen()
     st.stop()
