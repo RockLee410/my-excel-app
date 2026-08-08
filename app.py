@@ -140,7 +140,47 @@ if st.session_state["user"] is None and qt_refresh:
         cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date, key="set_refresh_auto")
     except Exception:
         pass
+# 1. Catch password reset code from the email link
+if "code" in st.query_params:
+    try:
+        auth_code = st.query_params["code"]
+        res = supabase.auth.exchange_code_for_session({"auth_code": auth_code})
+        st.session_state["user"] = res.user
+        st.session_state["is_resetting_password"] = True
+        st.query_params.clear()  # Clear query params from browser URL
+    except Exception as e:
+        st.error(f"❌ Reset link expired or invalid: {e}")
 
+# 2. Render Set New Password Screen
+def render_reset_password_screen():
+    st.title("🔑 Create New Password")
+    st.write("Please enter your new password below.")
+    
+    with st.form("new_password_form"):
+        new_pw = st.text_input("New Password", type="password")
+        confirm_pw = st.text_input("Confirm New Password", type="password")
+        submit = st.form_submit_button("Update Password", type="primary")
+        
+        if submit:
+            if len(new_pw) < 6:
+                st.error("❌ Password must be at least 6 characters long.")
+            elif new_pw != confirm_pw:
+                st.error("❌ Passwords do not match.")
+            else:
+                try:
+                    supabase.auth.update_user({"password": new_pw})
+                    st.toast("✅ Password updated successfully!")
+                    st.success("✅ Password updated successfully! Redirecting...")
+                    st.session_state["is_resetting_password"] = False
+                    time.sleep(1.5)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Could not update password: {e}")
+
+# 3. Intercept flow if resetting password
+if st.session_state.get("is_resetting_password", False):
+    render_reset_password_screen()
+    st.stop()
 def render_login():
     st.title("🔐 Login to Quran Tracker")
     # Make sure tab3 is declared here:
