@@ -143,7 +143,8 @@ if st.session_state["user"] is None and qt_refresh:
 
 def render_login():
     st.title("🔐 Login to Quran Tracker")
-    tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    # Make sure tab3 is declared here:
+    tab1, tab2, tab3 = st.tabs(["Login", "Sign Up", "🔑 Forgot Password"])
     
     with tab1:
         email = st.text_input("Email", key="login_email")
@@ -172,6 +173,21 @@ def render_login():
             except Exception as e:
                 st.error(f"Sign up failed: {e}")
 
+    with tab3:
+        st.write("Enter your email address to receive a password reset link.")
+        reset_email = st.text_input("Registered Email", key="reset_email")
+        if st.button("Send Reset Link"):
+            if not reset_email:
+                st.error("Please enter your email address.")
+            else:
+                try:
+                    supabase.auth.reset_password_for_email(
+                        reset_email,
+                        {"redirect_to": "https://your-streamlit-app-url.streamlit.app"} # Replace with your live app URL
+                    )
+                    st.success("📩 Password reset link sent! Please check your email inbox.")
+                except Exception as e:
+                    st.error(f"Could not send reset link: {e}")
 if st.session_state["user"] is None:
     render_login()
     st.stop()
