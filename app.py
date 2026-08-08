@@ -183,7 +183,7 @@ def render_login():
                 try:
                     supabase.auth.reset_password_for_email(
                         reset_email,
-                        {"redirect_to": "https://your-streamlit-app-url.streamlit.app"} # Replace with your live app URL
+                        {"redirect_to": "https://my-quran-tracker.streamlit.app"} # Replace with your live app URL
                     )
                     st.success("📩 Password reset link sent! Please check your email inbox.")
                 except Exception as e:
