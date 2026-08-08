@@ -793,16 +793,28 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"❌ Could not save settings: {e}")
     if st.button("Logout", use_container_width=True):
-        supabase.auth.sign_out()
+        try:
+            supabase.auth.sign_out()
+        except Exception:
+            pass
 
-        cookie_manager.delete("qt_access", key="del_access")
-        cookie_manager.delete("qt_refresh", key="del_refresh")
+        # Safely attempt cookie deletion without crashing if already removed
+        try:
+            cookie_manager.delete("qt_access", key="del_access")
+        except Exception:
+            pass
 
+        try:
+            cookie_manager.delete("qt_refresh", key="del_refresh")
+        except Exception:
+            pass
+
+        # Clear session state
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state["user"] = None
         
-        time.sleep(0.5)
+        time.sleep(0.3)
         st.rerun()
     st.markdown("---")
     
