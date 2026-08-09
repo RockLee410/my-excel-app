@@ -251,7 +251,13 @@ def render_login():
                 except Exception as e:
                     st.error(f"❌ Invalid or expired code: {e}")
 
-user_email = st.session_state["user"].email
+if st.session_state["user"] is None:
+    render_login()
+    st.stop()
+
+# Safely extracts the email whether Supabase returns a dict or an object
+user_obj = st.session_state["user"]
+user_email = user_obj.get("email", "") if isinstance(user_obj, dict) else getattr(user_obj, "email", "")
 
 # --- DATA FETCHERS ---
 def fetch_logs():
