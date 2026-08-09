@@ -144,17 +144,22 @@ if st.session_state["user"] is None and qt_refresh:
 components.html(
     """
     <script>
-    const parentUrl = window.parent.location.href;
-    if (parentUrl.includes('#access_token=')) {
-        const hash = window.parent.location.hash.substring(1);
-        const params = new URLSearchParams(hash);
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
-        const type = params.get('type');
-        
-        if (type === 'recovery' && accessToken) {
-            window.parent.location.href = window.parent.location.origin + window.parent.location.pathname + '?access_token=' + accessToken + '&refresh_token=' + refreshToken;
+    try {
+        // Safely access top location hash without throwing browser security exceptions
+        const hash = window.top.location.hash || window.parent.location.hash;
+        if (hash && hash.includes('access_token=')) {
+            const params = new URLSearchParams(hash.replace(/^#/, ''));
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token') || '';
+            const type = params.get('type');
+            
+            if (type === 'recovery' && accessToken) {
+                const targetUrl = window.top.location.origin + window.top.location.pathname + '?access_token=' + accessToken + '&refresh_token=' + refreshToken;
+                window.top.location.replace(targetUrl);
+            }
         }
+    } catch (e) {
+        console.log("Hash check skipped:", e);
     }
     </script>
     """,
@@ -202,6 +207,73 @@ def render_reset_password_screen():
 if st.session_state.get("is_resetting_password", False):
     render_reset_password_screen()
     st.stop()
+
+def render_login():
+    st.title("🔐 Login to Quran Tracker")
+    tab1, tab2, tab3 = st.tabs(["Login", "Sign Up", "🔑 Forgot Password"])
+    
+    with tab1:
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Login", type="primary"):
+            try:
+                response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                st.session_state["user"] = response.user
+
+                expire_date = datetime.now() + timedelta(days=30)
+                cookie_manager.set("qt_access", response.session.access_token, expires_at=expire_date, key="set_access_login")
+                cookie_manager.set("qt_refresh", response.session.refresh_token, expires_at=expire_date, key="set_refresh_login")
+
+                time.sleep(0.5)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Login failed: {e}")
+
+    with tab2:
+        new_email = st.text_input("Email", key="reg_email")
+        new_password = st.text_input("Password (min 6 chars)", type="password", key="reg_pass")
+        if st.button("Sign Up"):
+            try:
+                supabase.auth.sign_up({"email": new_email, "password": new_password})
+                st.success("✅ Account created! You can now log in.")
+            except Exception as e:
+                st.error(f"Sign up failed: {e}")
+
+    with tab3:
+        st.write("Enter your email address to receive a password reset link.")
+        reset_email = st.text_input("Registered Email", key="reset_email")
+        
+        if st.button("Send Reset Link"):
+            if not reset_email:
+                st.error("Please enter your email address.")
+            else:
+                try:
+                    supabase.auth.reset_password_for_email(
+                        reset_email,
+                        {"redirect_to": "https://my-quran-tracker.streamlit.app"}
+                    )
+                    st.session_state["reset_email_sent"] = reset_email
+                    st.success("📩 Password reset link sent! Please check your email inbox.")
+                except Exception as e:
+                    st.error(f"Could not send reset link: {e}")
+
+        # Fallback Option: Enter 6-digit code directly from email
+        if st.session_state.get("reset_email_sent"):
+            st.markdown("---")
+            st.write("📩 **Or enter the 6-digit code from your email:**")
+            reset_code = st.text_input("6-Digit Code", key="reset_otp_code")
+            if st.button("Verify Code & Reset Password"):
+                try:
+                    res = supabase.auth.verify_otp({
+                        "email": st.session_state["reset_email_sent"],
+                        "token": reset_code.strip(),
+                        "type": "recovery"
+                    })
+                    st.session_state["user"] = res.user
+                    st.session_state["is_resetting_password"] = True
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Invalid or expired code: {e}")
 def render_login():
     st.title("🔐 Login to Quran Tracker")
     # Make sure tab3 is declared here:
