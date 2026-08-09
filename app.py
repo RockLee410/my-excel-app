@@ -2,6 +2,7 @@ import base64
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
 from datetime import date, timedelta, datetime
 import altair as alt
 import extra_streamlit_components as stx
@@ -115,7 +116,11 @@ cookie_manager = stx.CookieManager(key="quran_tracker_cookies")
 # --- INITIALIZE DATABASE CONNECTION ---
 @st.cache_resource
 def init_connection():
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    return create_client(
+        st.secrets["SUPABASE_URL"], 
+        st.secrets["SUPABASE_KEY"],
+        options=ClientOptions(flow_type="pkce")  # <-- Forces ?code= links in emails
+    )
 
 try:
     supabase: Client = init_connection()
@@ -140,45 +145,19 @@ if st.session_state["user"] is None and qt_refresh:
         cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date, key="set_refresh_auto")
     except Exception:
         pass
-# --- 1. JAVASCRIPT HASH CONVERTER (For Default Supabase Links) ---
-components.html(
-    """
-    <script>
-    try {
-        // Safely access top location hash without throwing browser security exceptions
-        const hash = window.top.location.hash || window.parent.location.hash;
-        if (hash && hash.includes('access_token=')) {
-            const params = new URLSearchParams(hash.replace(/^#/, ''));
-            const accessToken = params.get('access_token');
-            const refreshToken = params.get('refresh_token') || '';
-            const type = params.get('type');
-            
-            if (type === 'recovery' && accessToken) {
-                const targetUrl = window.top.location.origin + window.top.location.pathname + '?access_token=' + accessToken + '&refresh_token=' + refreshToken;
-                window.top.location.replace(targetUrl);
-            }
-        }
-    } catch (e) {
-        console.log("Hash check skipped:", e);
-    }
-    </script>
-    """,
-    height=0,
-)
 
-# --- 2. CATCH ACCESS TOKEN & AUTHENTICATE ---
-if "access_token" in st.query_params:
+# --- 1. CATCH PKCE CODE FROM EMAIL RESET LINK ---
+if "code" in st.query_params:
     try:
-        access_token = st.query_params["access_token"]
-        refresh_token = st.query_params.get("refresh_token", "")
-        res = supabase.auth.set_session(access_token, refresh_token)
+        auth_code = st.query_params["code"]
+        res = supabase.auth.exchange_code_for_session({"auth_code": auth_code})
         st.session_state["user"] = res.user
         st.session_state["is_resetting_password"] = True
-        st.query_params.clear()
+        st.query_params.clear()  # Clean up code from browser URL
     except Exception as e:
         st.error(f"❌ Reset link expired or invalid: {e}")
 
-# --- 3. RENDER SET NEW PASSWORD SCREEN ---
+# --- 2. RENDER SET NEW PASSWORD SCREEN ---
 def render_reset_password_screen():
     st.title("🔑 Create New Password")
     st.write("Please enter your new password below.")
