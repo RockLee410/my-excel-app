@@ -116,11 +116,7 @@ cookie_manager = stx.CookieManager(key="quran_tracker_cookies")
 # --- INITIALIZE DATABASE CONNECTION ---
 @st.cache_resource
 def init_connection():
-    return create_client(
-        st.secrets["SUPABASE_URL"], 
-        st.secrets["SUPABASE_KEY"],
-        options=ClientOptions(flow_type="pkce")  # <-- Forces ?code= links in emails
-    )
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 try:
     supabase: Client = init_connection()
@@ -146,16 +142,16 @@ if st.session_state["user"] is None and qt_refresh:
     except Exception:
         pass
 
-# --- 1. CATCH PKCE CODE FROM EMAIL RESET LINK ---
+# --- 1. CATCH QUERY CODE FROM URL (IF PRESENT) ---
 if "code" in st.query_params:
     try:
         auth_code = st.query_params["code"]
         res = supabase.auth.exchange_code_for_session({"auth_code": auth_code})
         st.session_state["user"] = res.user
         st.session_state["is_resetting_password"] = True
-        st.query_params.clear()  # Clean up code from browser URL
-    except Exception as e:
-        st.error(f"❌ Reset link expired or invalid: {e}")
+        st.query_params.clear()
+    except Exception:
+        pass
 
 # --- 2. RENDER SET NEW PASSWORD SCREEN ---
 def render_reset_password_screen():
@@ -187,6 +183,7 @@ if st.session_state.get("is_resetting_password", False):
     render_reset_password_screen()
     st.stop()
 
+# --- 3. LOGIN & PASSWORD RESET TAB SYSTEM ---
 def render_login():
     st.title("🔐 Login to Quran Tracker")
     tab1, tab2, tab3 = st.tabs(["Login", "Sign Up", "🔑 Forgot Password"])
@@ -219,10 +216,10 @@ def render_login():
                 st.error(f"Sign up failed: {e}")
 
     with tab3:
-        st.write("Enter your email address to receive a password reset link.")
+        st.write("Enter your registered email to receive a password reset code.")
         reset_email = st.text_input("Registered Email", key="reset_email")
         
-        if st.button("Send Reset Link"):
+        if st.button("Send Reset Code"):
             if not reset_email:
                 st.error("Please enter your email address.")
             else:
@@ -232,16 +229,16 @@ def render_login():
                         {"redirect_to": "https://my-quran-tracker.streamlit.app"}
                     )
                     st.session_state["reset_email_sent"] = reset_email
-                    st.success("📩 Password reset link sent! Please check your email inbox.")
+                    st.success("📩 Password reset code sent! Check your inbox for the 6-digit code.")
                 except Exception as e:
                     st.error(f"Could not send reset link: {e}")
 
-        # Fallback Option: Enter 6-digit code directly from email
+        # Form to enter the 6-digit OTP code directly on screen
         if st.session_state.get("reset_email_sent"):
             st.markdown("---")
-            st.write("📩 **Or enter the 6-digit code from your email:**")
+            st.write(f"📩 Code sent to **{st.session_state['reset_email_sent']}**. Enter the 6-digit code below:")
             reset_code = st.text_input("6-Digit Code", key="reset_otp_code")
-            if st.button("Verify Code & Reset Password"):
+            if st.button("Verify Code"):
                 try:
                     res = supabase.auth.verify_otp({
                         "email": st.session_state["reset_email_sent"],
@@ -253,56 +250,6 @@ def render_login():
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Invalid or expired code: {e}")
-def render_login():
-    st.title("🔐 Login to Quran Tracker")
-    # Make sure tab3 is declared here:
-    tab1, tab2, tab3 = st.tabs(["Login", "Sign Up", "🔑 Forgot Password"])
-    
-    with tab1:
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_pass")
-        if st.button("Login", type="primary"):
-            try:
-                response = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                st.session_state["user"] = response.user
-
-                expire_date = datetime.now() + timedelta(days=30)
-                cookie_manager.set("qt_access", response.session.access_token, expires_at=expire_date, key="set_access_login")
-                cookie_manager.set("qt_refresh", response.session.refresh_token, expires_at=expire_date, key="set_refresh_login")
-
-                time.sleep(0.5)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Login failed: {e}")
-
-    with tab2:
-        new_email = st.text_input("Email", key="reg_email")
-        new_password = st.text_input("Password (min 6 chars)", type="password", key="reg_pass")
-        if st.button("Sign Up"):
-            try:
-                supabase.auth.sign_up({"email": new_email, "password": new_password})
-                st.success("✅ Account created! You can now log in.")
-            except Exception as e:
-                st.error(f"Sign up failed: {e}")
-
-    with tab3:
-        st.write("Enter your email address to receive a password reset link.")
-        reset_email = st.text_input("Registered Email", key="reset_email")
-        if st.button("Send Reset Link"):
-            if not reset_email:
-                st.error("Please enter your email address.")
-            else:
-                try:
-                    supabase.auth.reset_password_for_email(
-                        reset_email,
-                        {"redirect_to": "https://my-quran-tracker.streamlit.app"} # Replace with your live app URL
-                    )
-                    st.success("📩 Password reset link sent! Please check your email inbox.")
-                except Exception as e:
-                    st.error(f"Could not send reset link: {e}")
-if st.session_state["user"] is None:
-    render_login()
-    st.stop()
 
 user_email = st.session_state["user"].email
 
