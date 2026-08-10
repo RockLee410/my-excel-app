@@ -982,10 +982,78 @@ if page == "📊 Dashboard":
             with col_b2:
                 st.button(f"🟡 Page {page_val} needs revision", on_click=upgrade_single_page, args=(surah_name, page_val, "2 - Needs Revision"), use_container_width=True)
                 
-        # Preview top 5 due items in an inline expander
+        # Preview top 5 due items (grouped by Surah & Status)
         with st.expander("📋 View Top 5 Due Items"):
-            df_top5 = df_actions.sort_values('Score').head(5)[['Status', 'Surah', 'Juz', 'Page', 'Priority', 'Last Revised']]
-            st.dataframe(df_top5, use_container_width=True, hide_index=True)
+            sorted_actions = df_actions.sort_values('Score').copy()
+            grouped_items = []
+            current_group = None
+
+            for _, row in sorted_actions.iterrows():
+                surah = row['Surah']
+                status = row['Status']
+                priority = row['Priority']
+                last_rev = row['Last Revised']
+                page = row['Page']
+                juz = row['Juz']
+
+                if current_group is None:
+                    current_group = {
+                        'Surah': surah,
+                        'Status': status,
+                        'Priority': priority,
+                        'Last Revised': last_rev,
+                        'Start_Page': page,
+                        'End_Page': page,
+                        'Min_Juz': juz,
+                        'Max_Juz': juz
+                    }
+                else:
+                    # Group together if it's the SAME Surah, Status, Priority, Last Revised, AND consecutive pages
+                    same_surah = (current_group['Surah'] == surah)
+                    same_status = (current_group['Status'] == status)
+                    same_priority = (current_group['Priority'] == priority)
+                    same_rev = (current_group['Last Revised'] == last_rev)
+                    is_consecutive = (page == current_group['End_Page'] + 1)
+
+                    if same_surah and same_status and same_priority and same_rev and is_consecutive:
+                        current_group['End_Page'] = page
+                        current_group['Max_Juz'] = max(current_group['Max_Juz'], juz)
+                    else:
+                        grouped_items.append(current_group)
+                        current_group = {
+                            'Surah': surah,
+                            'Status': status,
+                            'Priority': priority,
+                            'Last Revised': last_rev,
+                            'Start_Page': page,
+                            'End_Page': page,
+                            'Min_Juz': juz,
+                            'Max_Juz': juz
+                        }
+            
+            if current_group:
+                grouped_items.append(current_group)
+
+            # Format formatted rows for display
+            formatted_rows = []
+            for item in grouped_items[:5]:  # Take the top 5 grouped tasks
+                page_str = f"Page {item['Start_Page']}" if item['Start_Page'] == item['End_Page'] else f"Pages {item['Start_Page']}–{item['End_Page']}"
+                juz_str = f"Juz {item['Min_Juz']}" if item['Min_Juz'] == item['Max_Juz'] else f"Juz {item['Min_Juz']}–{item['Max_Juz']}"
+                
+                # Extract clean Surah name without number prefix
+                c_surah = item['Surah'].split('. ', 1)[1] if '. ' in item['Surah'] else item['Surah']
+
+                formatted_rows.append({
+                    'Status': item['Status'],
+                    'Surah': c_surah,
+                    'Juz': juz_str,
+                    'Pages': page_str,
+                    'Priority': item['Priority'],
+                    'Last Revised': item['Last Revised']
+                })
+
+            df_top5_grouped = pd.DataFrame(formatted_rows)
+            st.dataframe(df_top5_grouped, use_container_width=True, hide_index=True)
     else:
         st.success("🎉 **NEXT ON TO-DO LIST:** All caught up! No pages are due for revision.")
 
@@ -1355,25 +1423,7 @@ elif page == "📝 Log Session":
             except Exception as e:
                 st.error(f"❌ Failed to parse file: {e}")
 
-# --- PAGE 3: Next on The To-Do List  ---
-elif page == "📋 Next on The To-Do List":
-    st.title("📋 Next on The To-Do List")
-    st.write("This view mirrors the workbook's live ranking engine and surfaces the top pages that need attention.")
-
-    df_logs = fetch_logs()
-    df_dashboard = build_dashboard_rows(df_logs, df_priorities)
-    df_actions = df_dashboard[(df_dashboard['Status'] != '🟢 Good') & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
-
-    if df_actions.empty:
-        st.success("🎉 All caught up! No pages are due for revision today.")
-    else:
-        df_top = df_actions.sort_values('Score').head(25)
-        display_df = df_top[['Status', 'Surah', 'Juz', 'Page', 'Priority', 'Last Revised', 'Next Revision Due']]
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
-        
-       
-
-# --- PAGE 4: VIEW HISTORY ---
+# --- PAGE 3: VIEW HISTORY ---
 elif page == "📜 View History":
     st.title("📜 Complete Study History")
     df_logs = fetch_logs()
