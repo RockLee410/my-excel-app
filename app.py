@@ -142,51 +142,10 @@ if st.session_state["user"] is None and qt_refresh:
     except Exception:
         pass
 
-# --- 1. CATCH QUERY CODE FROM URL (IF PRESENT) ---
-if "code" in st.query_params:
-    try:
-        auth_code = st.query_params["code"]
-        res = supabase.auth.exchange_code_for_session({"auth_code": auth_code})
-        st.session_state["user"] = res.user
-        st.session_state["is_resetting_password"] = True
-        st.query_params.clear()
-    except Exception:
-        pass
-
-# --- 2. RENDER SET NEW PASSWORD SCREEN ---
-def render_reset_password_screen():
-    st.title("🔑 Create New Password")
-    st.write("Please enter your new password below.")
-    
-    with st.form("new_password_form"):
-        new_pw = st.text_input("New Password", type="password")
-        confirm_pw = st.text_input("Confirm New Password", type="password")
-        submit = st.form_submit_button("Update Password", type="primary")
-        
-        if submit:
-            if len(new_pw) < 6:
-                st.error("❌ Password must be at least 6 characters long.")
-            elif new_pw != confirm_pw:
-                st.error("❌ Passwords do not match.")
-            else:
-                try:
-                    supabase.auth.update_user({"password": new_pw})
-                    st.toast("✅ Password updated successfully!")
-                    st.success("✅ Password updated successfully! Redirecting...")
-                    st.session_state["is_resetting_password"] = False
-                    time.sleep(1.5)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Could not update password: {e}")
-
-if st.session_state.get("is_resetting_password", False):
-    render_reset_password_screen()
-    st.stop()
-
-# --- 3. LOGIN & PASSWORD RESET TAB SYSTEM ---
+# --- LOGIN & SIGN UP SYSTEM ---
 def render_login():
     st.title("🔐 Login to Quran Tracker")
-    tab1, tab2, tab3 = st.tabs(["Login", "Sign Up", "🔑 Forgot Password"])
+    tab1, tab2 = st.tabs(["Login", "Sign Up"])
     
     with tab1:
         email = st.text_input("Email", key="login_email")
@@ -215,50 +174,13 @@ def render_login():
             except Exception as e:
                 st.error(f"Sign up failed: {e}")
 
-    with tab3:
-        st.write("Enter your registered email to receive a password reset code.")
-        reset_email = st.text_input("Registered Email", key="reset_email")
-        
-        if st.button("Send Reset Code"):
-            if not reset_email:
-                st.error("Please enter your email address.")
-            else:
-                try:
-                    supabase.auth.reset_password_for_email(
-                        reset_email,
-                        {"redirect_to": "https://my-quran-tracker.streamlit.app"}
-                    )
-                    st.session_state["reset_email_sent"] = reset_email
-                    st.success("📩 Password reset code sent! Check your inbox for the 6-digit code.")
-                except Exception as e:
-                    st.error(f"Could not send reset link: {e}")
-
-        # Form to enter the 6-digit OTP code directly on screen
-        if st.session_state.get("reset_email_sent"):
-            st.markdown("---")
-            st.write(f"📩 Code sent to **{st.session_state['reset_email_sent']}**. Enter the 6-digit code below:")
-            reset_code = st.text_input("6-Digit Code", key="reset_otp_code")
-            if st.button("Verify Code"):
-                try:
-                    res = supabase.auth.verify_otp({
-                        "email": st.session_state["reset_email_sent"],
-                        "token": reset_code.strip(),
-                        "type": "recovery"
-                    })
-                    st.session_state["user"] = res.user
-                    st.session_state["is_resetting_password"] = True
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Invalid or expired code: {e}")
-
 if st.session_state["user"] is None:
     render_login()
     st.stop()
 
-# Safely extracts the email whether Supabase returns a dict or an object
+# Safely extract email whether Supabase returns a dictionary or an object
 user_obj = st.session_state["user"]
 user_email = user_obj.get("email", "") if isinstance(user_obj, dict) else getattr(user_obj, "email", "")
-
 # --- DATA FETCHERS ---
 def fetch_logs():
     res = supabase.table('daily_logs').select("*").eq("user_name", user_email).execute()
