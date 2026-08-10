@@ -581,6 +581,11 @@ def render_priority_manager(onboarding=False):
         st.title("👋 Welcome to your Quran Tracker!")
         st.write("Let's build your baseline by answering two simple questions. *Al-Fatihah is excluded here and defaults to Confident automatically.*")
         
+        with st.expander("ℹ️ How do priorities work?"):
+            st.write("• **Priority 1 (Confident):** Surahs/pages you know well. We'll schedule periodic check-ins.")
+            st.write("• **Priority 2 (Needs Revision):** Surahs/pages you memorized before but feel rusty on.")
+            st.write("• **Priority 3 (Not Memorized):** Default for everything else. You'll tackle these after revising Priority 1 & 2.")
+
         if st.button("⏭️ Skip Setup & Go to Dashboard"):
             supabase.table('surah_categories').insert([{"user_name": user_email, "surah_number": 0, "surah_name": "ONBOARDED", "category": "SYSTEM"}]).execute()
             st.rerun()
@@ -689,103 +694,42 @@ def render_priority_manager(onboarding=False):
                 except Exception as e:
                     st.error(f"❌ Failed to reset: {e}")
 
-# --- NEW: ONBOARDING POP-UP DIALOG ---
-@st.dialog("Welcome to your daily journey! 📖")
+# --- SIMPLIFIED ONBOARDING POP-UP DIALOG ---
+@st.dialog("Welcome to Quran Tracker Cloud! 📖")
 def show_intro_popup():
-    step = st.session_state.get('intro_step', 1)
+    st.markdown("### Simple. Consistent. Daily.")
+    st.write("Build a lifelong relationship with the Quran at your own pace in **3 easy steps**:")
+
+    st.markdown("""
+    1. **⚙️ Set Up Once:** Tell us what you've memorized so far to set your baseline.
+    2. **📖 Do Your Daily Wird:** Read, revise, or memorize at whatever time you can commit today.
+    3. **📝 Log Your Session:** Record your time, and let our smart engine automatically rank and schedule your next revisions!
+    """)
     
-    if step == 1:
-        st.subheader("Welcome to Quran Tracker Cloud!")
-        st.write("The ultimate goal of this app is simple: to help you read, revise, and memorize the Quran every single day.")
-        st.write("It does not matter how long it takes you to finish the Quran. Whether you can commit to 15 minutes, 30 minutes, or an hour a day—what truly matters is your consistency. This tool is designed to help you build and maintain a lifelong relationship with the Quran at your own pace.")
-        
-        if st.button("Next ➔", type="primary", use_container_width=True):
-            st.session_state.intro_step = 2
-            st.rerun()
-            
-    elif step == 2:
-        st.subheader("Never Forget What You've Learned")
-        st.write("Memorizing is great, but retaining it is harder. To make sure you never forget what you have already memorized, this app uses a smart ranking engine to build your daily tasks.")
-        st.write("**1 - Confident:** We protect what you know. Pages you are confident in will be surfaced exactly when they need a quick review.")
-        st.write("**2 - Needs Revision:** Next, we focus on pages you have memorized in the past but need some active work to lock them in.")
-        st.write("**3 - Not Memorized:** Only after your previous memorization is secure will the app guide you to focus on brand-new pages.")
-        
-        col1, col2 = st.columns(2)
-        if col1.button("⬅ Back", use_container_width=True):
-            st.session_state.intro_step = 1
-            st.rerun()
-        if col2.button("Next ➔", type="primary", use_container_width=True):
-            st.session_state.intro_step = 3
-            st.rerun()
-            
-    elif step == 3:
-        st.subheader("Setting Your Baseline")
-        st.write("Before we can build your personalized **Next on The To-Do List**, we need to know where you currently stand.")
-        st.write("In the next screen, you will be asked to assign your current memorization levels to the Surahs (or specific pages) you already know.")
-        
-        col1, col2 = st.columns(2)
-        if col1.button("⬅ Back", use_container_width=True):
-            st.session_state.intro_step = 2
-            st.rerun()
-        if col2.button("🚀 Start Setup", type="primary", use_container_width=True):
-            st.session_state.intro_complete = True
-            st.rerun()
+    st.markdown("---")
+
+    # Optional "Learn More" expander inside the dialog
+    with st.expander("💡 Learn How the Smart Priority Engine Works"):
+        st.write("The app uses a 3-tier system to make sure you **never forget** what you've memorized:")
+        st.write("• **1 - Confident:** Protects what you know with timely, scheduled reviews.")
+        st.write("• **2 - Needs Revision:** Focuses on older memorization that needs active strengthening.")
+        st.write("• **3 - Not Memorized:** Directs you to new pages only after existing memorization is secure.")
+
+    st.markdown("---")
+    if st.button("🚀 Let's Get Started", type="primary", use_container_width=True):
+        st.session_state.intro_complete = True
+        st.rerun()
 
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
     st.write(f"👤 Logged in as: **{user_email.split('@')[0]}**")
-    with st.expander("🔑 Change Password"):
-        with st.form("change_pass_form", clear_on_submit=True):
-            new_pw = st.text_input("New Password", type="password", key="side_new_pw")
-            confirm_pw = st.text_input("Confirm New Password", type="password", key="side_conf_pw")
-            submit_pw = st.form_submit_button("Update Password", use_container_width=True)
-            
-            if submit_pw:
-                if len(new_pw) < 6:
-                    st.error("❌ Password must be at least 6 characters long.")
-                elif new_pw != confirm_pw:
-                    st.error("❌ Passwords do not match.")
-                else:
-                    try:
-                        # Supabase updates the password for the currently active session
-                        supabase.auth.update_user({"password": new_pw})
-                        st.toast("✅ Password updated successfully!")
-                        st.success("✅ Password updated!")
-                    except Exception as e:
-                        st.error(f"❌ Failed to update password: {e}")
-    # --- NEW: EMAIL REMINDERS EXPANDER ---
-    with st.expander("🔔 Daily Reminders"):
-        current_settings = fetch_user_settings()
-        
-        with st.form("reminder_settings_form"):
-            rem_enabled = st.checkbox("Enable Daily Email Reminders", value=current_settings.get("email_reminders", False))
-            
-            # Format time options in 12-hour AM/PM format
-            time_options = [f"{h:02d}:00" for h in range(24)]
-            time_labels = [datetime.strptime(t, "%H:%M").strftime("%I:00 %p") for t in time_options]
-            
-            curr_time_str = current_settings.get("reminder_time", "20:00")
-            curr_index = time_options.index(curr_time_str) if curr_time_str in time_options else 20
-            
-            selected_time_label = st.selectbox("Preferred Time", options=time_labels, index=curr_index)
-            selected_time = time_options[time_labels.index(selected_time_label)]
-            
-            submit_rem = st.form_submit_button("Save Reminder Settings", use_container_width=True)
-            
-            if submit_rem:
-                try:
-                    save_user_settings(rem_enabled, selected_time)
-                    st.toast("✅ Reminder settings saved!")
-                    st.success("✅ Settings saved!")
-                except Exception as e:
-                    st.error(f"❌ Could not save settings: {e}")
+    
     if st.button("Logout", use_container_width=True):
         try:
             supabase.auth.sign_out()
         except Exception:
             pass
 
-        # Safely attempt cookie deletion without crashing if already removed
         try:
             cookie_manager.delete("qt_access", key="del_access")
         except Exception:
@@ -796,22 +740,29 @@ with st.sidebar:
         except Exception:
             pass
 
-        # Clear session state
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state["user"] = None
         
         time.sleep(0.3)
         st.rerun()
+
     st.markdown("---")
     
     if not is_onboarded:
         st.warning("⚠️ Setup Required")
         st.write("Please complete setup (or skip) to unlock the app.")
-        page = "⚙️ Manage Priorities"
+        page = "🎯 Manage Priorities"
     else:
-        page = st.radio("📌 Navigation", ["📊 Dashboard", "📝 Log Session", "📋 Next on The To-Do List", "📜 View History", "⚙️ Manage Priorities"], key="sidebar_nav")
+        # Catch pending navigation redirects before rendering the widget
+        if "pending_nav" in st.session_state:
+            st.session_state["sidebar_nav"] = st.session_state.pop("pending_nav")
 
+        page = st.radio(
+            "📌 Navigation", 
+            ["📊 Dashboard", "📝 Log Session", "📜 View History", "🎯 Manage Priorities", "⚙️ Settings","💡 How It Works"], 
+            key="sidebar_nav"
+        )
 # --- ONBOARDING GATE (UPDATED FOR POP-UP) ---
 if not is_onboarded:
     if not st.session_state.get('intro_complete', False):
@@ -916,6 +867,7 @@ def render_achievements_section(df_logs, df_dashboard, max_streak, total_hours):
             st.markdown(card_html, unsafe_allow_html=True)
 
 # --- PAGE 1: DASHBOARD ---
+# --- PAGE 1: DASHBOARD ---
 if page == "📊 Dashboard":
     head_col1, head_col2 = st.columns([3, 1])
     with head_col1:
@@ -925,40 +877,52 @@ if page == "📊 Dashboard":
         def jump_to_log():
             st.session_state.sidebar_nav = "📝 Log Session"
         st.button("📝 Log Session", type="primary", on_click=jump_to_log, use_container_width=True)
+    
     df_logs = fetch_logs()
     df_dashboard = build_dashboard_rows(df_logs, df_priorities)
 
-    # Global Progress Bar
+    # 1. Global Progress & Metrics
     total_confident = df_dashboard[df_dashboard['Priority'] == '1 - Confident']['Page'].nunique()
     progress_pct = min(total_confident / 604.0, 1.0)
     st.markdown(f"### 🏆 Memorization Progress: {int(progress_pct * 100)}%")
     st.progress(progress_pct, text=f"{total_confident} out of 604 pages confidently memorized")
-    st.markdown("---")
-    # --- NEW: LAST SESSION CALLOUT ---
-    if not df_logs.empty:
-        # Sort logs to find the absolute newest one
-        latest_log = df_logs.sort_values(by="log_date", ascending=False).iloc[0]
     
+    total_sessions = len(df_logs)
+    total_hours = round(df_logs['minutes'].sum() / 60, 1) if not df_logs.empty else 0
+    current_streak, max_streak = calculate_user_streaks(df_logs)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("🔥 Current Streak", f"{current_streak} Days")
+    col2.metric("⏱️ Total Time Spent", f"{total_hours} Hours")
+    col3.metric("📅 Total Sessions", total_sessions)
+
+    st.markdown("---")
+
+    # 2. Last Session Callout
+    if not df_logs.empty:
+        # Sort by log_date and tie-break with created_at or id to get the absolute newest entry
+        sort_cols = ["log_date"]
+        if "created_at" in df_logs.columns:
+            sort_cols.append("created_at")
+        elif "id" in df_logs.columns:
+            sort_cols.append("id")
+
+        latest_log = df_logs.sort_values(by=sort_cols, ascending=[False] * len(sort_cols)).iloc[0]
         l_date = pd.to_datetime(latest_log['log_date']).strftime('%B %d, %Y')
         l_mins = int(latest_log.get('minutes', 0))
     
-        # Safely clean the data in case some fields are empty (NaN)
         f_surah_raw = "" if pd.isna(latest_log.get('from_surah')) else str(latest_log.get('from_surah')).strip()
         t_surah_raw = "" if pd.isna(latest_log.get('to_surah')) else str(latest_log.get('to_surah')).strip()
         f_page = 0 if pd.isna(latest_log.get('from_page')) else int(latest_log.get('from_page'))
         t_page = 0 if pd.isna(latest_log.get('to_page')) else int(latest_log.get('to_page'))
     
-        # FIXED: Strip out the number prefix (e.g., "18. Al-Kahf" becomes "Al-Kahf")
         f_surah = f_surah_raw.split('. ', 1)[1] if '. ' in f_surah_raw else f_surah_raw
         t_surah = t_surah_raw.split('. ', 1)[1] if '. ' in t_surah_raw else t_surah_raw
     
-        # Build the dynamic reading span text
         if not t_surah and t_page == 0:
             loc_str = f"Surah {f_surah} (Page {f_page})" if f_page > 0 else f"Surah {f_surah}"
         else:
             actual_t_surah = t_surah if t_surah else f_surah
-    
-            # Make it read cleanly if it's all within the same Surah
             if f_surah == actual_t_surah and f_page > 0 and t_page > 0:
                 loc_str = f"Surah {f_surah} (Pages {f_page} to {t_page})"
             else:
@@ -967,31 +931,24 @@ if page == "📊 Dashboard":
                 loc_str = f"from {start_str} to {end_str}"
     
         st.caption(f"🕒 **Last logged session:** {l_date} - {l_mins} min - {loc_str}")
-    # --- NEXT ON TO-DO LIST ---
+
+    # 3. Next On To-Do List (Merged Main Hub)
     df_actions = df_dashboard[(df_dashboard['Status'] != '🟢 Good') & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
     if not df_actions.empty:
         top_action = df_actions.sort_values('Score').iloc[0]
-        
         current_cat = top_action['Priority']
         surah_str = top_action['Surah']
-        surah_name = surah_str.split('. ', 1)[1] # Extracts just the name!
+        surah_name = surah_str.split('. ', 1)[1]
         page_val = int(top_action['Page'])
         
-        # FIXED: Using the clean 'surah_name' instead of 'surah_str' here
         st.info(f"🎯 **NEXT ON TO-DO LIST:** Start Reading from Surah {surah_name} (Page {page_val})")
 
-        # --- BULLETPROOF CALLBACKS ---
-        # The callbacks now accept explicit parameters to avoid Streamlit state bugs,
-        # and execute microscopic, targeted database updates instead of bulk flushes.
         def upgrade_single_page(s_name, p_val, target_priority):
             set_page_priority(s_name, p_val, target_priority)
             try:
                 supabase.table('page_priorities').delete().eq('user_name', user_email).eq('surah_name', s_name).eq('page_number', p_val).execute()
                 supabase.table('page_priorities').insert({
-                    "user_name": user_email,
-                    "surah_name": s_name,
-                    "page_number": p_val,
-                    "category": target_priority
+                    "user_name": user_email, "surah_name": s_name, "page_number": p_val, "category": target_priority
                 }).execute()
             except Exception as e:
                 st.error(f"Failed to update database: {e}")
@@ -1011,167 +968,101 @@ if page == "📊 Dashboard":
                 except Exception as e:
                     st.error(f"Failed to update database: {e}")
                 st.toast(f"✅ {s_str} upgraded to {target_priority.split(' - ')[1]}!")
-            else:
-                st.toast("❌ Could not find the Surah in the database.")
 
-        # --- NEXT ON TO-DO LIST BUTTONS ---
         if current_cat == "2 - Needs Revision":
             col_b1, col_b2 = st.columns(2)
             with col_b1:
-                st.button(f"🟢 I am confident of Surah {surah_name}", on_click=upgrade_full_surah, args=(surah_str, "1 - Confident"), use_container_width=True)
+                st.button(f"🟢 Confident of Surah {surah_name}", on_click=upgrade_full_surah, args=(surah_str, "1 - Confident"), use_container_width=True)
             with col_b2:
-                st.button(f"🟢 I'm confident of page {page_val} of Surah {surah_name}", on_click=upgrade_single_page, args=(surah_name, page_val, "1 - Confident"), use_container_width=True)
-                
+                st.button(f"🟢 Confident of page {page_val}", on_click=upgrade_single_page, args=(surah_name, page_val, "1 - Confident"), use_container_width=True)
         elif current_cat == "3 - Not Memorized":
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 st.button(f"🟡 Surah {surah_name} needs revision", on_click=upgrade_full_surah, args=(surah_str, "2 - Needs Revision"), use_container_width=True)
             with col_b2:
-                st.button(f"🟡 Page {page_val} of Surah {surah_name} needs revision", on_click=upgrade_single_page, args=(surah_name, page_val, "2 - Needs Revision"), use_container_width=True)
+                st.button(f"🟡 Page {page_val} needs revision", on_click=upgrade_single_page, args=(surah_name, page_val, "2 - Needs Revision"), use_container_width=True)
                 
+        # Preview top 5 due items in an inline expander
+        with st.expander("📋 View Top 5 Due Items"):
+            df_top5 = df_actions.sort_values('Score').head(5)[['Status', 'Surah', 'Juz', 'Page', 'Priority', 'Last Revised']]
+            st.dataframe(df_top5, use_container_width=True, hide_index=True)
     else:
         st.success("🎉 **NEXT ON TO-DO LIST:** All caught up! No pages are due for revision.")
-    # --------------------------------
-
-    total_sessions = len(df_logs)
-    total_hours = round(df_logs['minutes'].sum() / 60, 1) if not df_logs.empty else 0
-
-    # Calculate both active and maximum streak
-    current_streak, max_streak = calculate_user_streaks(df_logs)
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🔥 Current Streak", f"{current_streak} Days")
-    col2.metric("⏱️ Total Time Spent", f"{total_hours} Hours")
-    col3.metric("📅 Total Sessions", total_sessions)
 
     st.markdown("---")
 
-    df_active = df_dashboard[(df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])) & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
-    if df_active.empty:
-        st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
-    else:
-        st.subheader("📚 Visual Progress Timeline")
-        st.write("Tap any block on the timeline below to view its revision details.")
-        
-        # Filter out Al-Fatihah
-        df_timeline = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
-        df_timeline['Clean_Surah'] = df_timeline['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
-
-        # --- 1. AGGREGATE PER PHYSICAL PAGE ---
-        aggregated_rows = []
-        for p_num, group in df_timeline.groupby('Page', sort=True):
-            sorted_group = group.sort_values('Score')
-            top_row = sorted_group.iloc[0].copy()
-            
-            all_surahs = group['Clean_Surah'].unique()
-            top_row['Clean_Surah'] = " / ".join(all_surahs)
-            aggregated_rows.append(top_row)
-
-        chart_df = pd.DataFrame(aggregated_rows)
-
-        # --- 2. CALCULATE JUZ OFFSETS & CENTER POINTS FOR TEXT ---
-        def get_juz_start(juz_num):
-            juz_starts = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582]
-            return juz_starts[int(juz_num) - 1]
-
-        chart_df['Juz_Start'] = chart_df['Juz'].apply(get_juz_start)
-        chart_df['Relative_Page'] = chart_df['Page'] - chart_df['Juz_Start'] + 1
-        chart_df['Relative_Page_End'] = chart_df['Relative_Page'] + 1
-        chart_df['Center_Page'] = chart_df['Relative_Page'] + 0.5  # Centers numbers inside each cell
-
-        # FIXED: Distinct High-Contrast Palette
-        status_domain = ["🟢 Good", "🟡 Due Soon", "🟡 Needs Revision", "🔴 Overdue", "⏳ Pending (Cat 1)", "⏳ Pending (Cat 2)", "⚪ Not Started"]
-        status_colors = [
-            "#10b981",  # Emerald Green
-            "#ddd012",  # Bright Electric Yellow (Due Soon)
-            "#F57F17",  # Deep Blaze Orange (Needs Revision - very distinct!)
-            "#ef4444",  # Ruby Red
-            "#3b82f6",  # Sky Blue
-            "#8b5cf6",  # Deep Purple
-            "#BDBDBD"   # Dark Charcoal
-        ]
-
-        # --- 3. BUILD LAYERED ALTAIR CHART (Rectangles + Page Numbers) ---
-        click = alt.selection_point(name='click', fields=['Page'])
-
-        base_chart = alt.Chart(chart_df)
-
-        # Layer A: Colored Rectangles
-        rects = base_chart.mark_rect(
-            stroke='#022c22',
-            strokeWidth=1.5,
-            cornerRadius=2
-        ).encode(
-            x=alt.X('Relative_Page:Q', title="Page within Juz", axis=alt.Axis(labels=False, ticks=False, grid=False)),
-            x2='Relative_Page_End:Q',
-            y=alt.Y('Juz:O', title="Juz", sort=alt.EncodingSortField(field="Juz", order="ascending")),
-            color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=3)),
-            opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
-        )
-
-        # Layer B: Page Number Labels
-        text = base_chart.mark_text(
-            baseline='middle',
-            align='center',
-            fontSize=8,
-            fontWeight='bold'
-        ).encode(
-            x=alt.X('Center_Page:Q'),
-            y=alt.Y('Juz:O'),
-            text=alt.Text('Page:Q'),
-            color=alt.condition(
-                (alt.datum.Status == '⚪ Not Started') | (alt.datum.Status == '🔴 Overdue') | (alt.datum.Status == '⏳ Pending (Cat 2)'),
-                alt.value('#ffffff'),
-                alt.value('#022c22')
-            ),
-            opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
-        )
-
-        timeline_chart = (rects + text).add_params(click).properties(height=600)
-
-        chart_event = st.altair_chart(timeline_chart, use_container_width=True, theme=None, on_select="rerun")
-
-        # --- 4. RENDER TAP DETAILS ---
-        if chart_event and chart_event.selection and "click" in chart_event.selection:
-            selections = chart_event.selection["click"]
-            if selections:
-                selected_page = selections[0]["Page"]
-                
-                page_surahs = df_dashboard[(df_dashboard['Page'] == selected_page) & (df_dashboard['Surah'] != '1. Al-Fatihah')]
-                
-                if len(page_surahs) == 1:
-                    r = page_surahs.iloc[0]
-                    c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
-                    next_due_str = f" &nbsp; | &nbsp; **Next Due:** {r['Next Revision Due']}" if r['Next Revision Due'] else ""
-                    st.success(
-                        f"**📖 Surah {c_name}** (Page {selected_page} | Juz {r['Juz']})  \n"
-                        f"**📊 Status:** {r['Status']}  \n"
-                        f"**📅 Last Revised:** {r['Last Revised']}{next_due_str}"
-                    )
-                elif len(page_surahs) > 1:
-                    juz_num = page_surahs.iloc[0]['Juz']
-                    surah_lines = []
-                    for _, r in page_surahs.iterrows():
-                        c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
-                        due_info = f" | Next Due: {r['Next Revision Due']}" if r['Next Revision Due'] else ""
-                        surah_lines.append(f"• **Surah {c_name}**: {r['Status']} (Last Revised: {r['Last Revised']}{due_info})")
-                    
-                    details_text = "  \n".join(surah_lines)
-                    st.success(
-                        f"**📖 Page {selected_page} (Juz {juz_num}) — Contains {len(page_surahs)} Surahs:**  \n"
-                        f"{details_text}"
-                    )
-            else:
-                st.info("👆 Tap any colored block on the timeline above to see page details.")
+    # 4. COLLAPSIBLE ADVANCED SECTIONS (Prevents visual clutter)
+    with st.expander("📚 Visual Progress Timeline (604-Page Grid)"):
+        df_active = df_dashboard[(df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])) & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
+        if df_active.empty:
+            st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
         else:
-            st.info("👆 Tap any colored block on the timeline above to see page details.")
+            df_timeline = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
+            df_timeline['Clean_Surah'] = df_timeline['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
 
-        st.markdown("---")
-        
-        # --- NEW: RENDER ACHIEVEMENTS & BADGES ---
+            aggregated_rows = []
+            for p_num, group in df_timeline.groupby('Page', sort=True):
+                sorted_group = group.sort_values('Score')
+                top_row = sorted_group.iloc[0].copy()
+                all_surahs = group['Clean_Surah'].unique()
+                top_row['Clean_Surah'] = " / ".join(all_surahs)
+                aggregated_rows.append(top_row)
+
+            chart_df = pd.DataFrame(aggregated_rows)
+
+            def get_juz_start(juz_num):
+                juz_starts = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582]
+                return juz_starts[int(juz_num) - 1]
+
+            chart_df['Juz_Start'] = chart_df['Juz'].apply(get_juz_start)
+            chart_df['Relative_Page'] = chart_df['Page'] - chart_df['Juz_Start'] + 1
+            chart_df['Relative_Page_End'] = chart_df['Relative_Page'] + 1
+            chart_df['Center_Page'] = chart_df['Relative_Page'] + 0.5
+
+            status_domain = ["🟢 Good", "🟡 Due Soon", "🟡 Needs Revision", "🔴 Overdue", "⏳ Pending (Cat 1)", "⏳ Pending (Cat 2)", "⚪ Not Started"]
+            status_colors = ["#10b981", "#ddd012", "#F57F17", "#ef4444", "#3b82f6", "#8b5cf6", "#BDBDBD"]
+
+            click = alt.selection_point(name='click', fields=['Page'])
+            base_chart = alt.Chart(chart_df)
+
+            rects = base_chart.mark_rect(stroke='#022c22', strokeWidth=1.5, cornerRadius=2).encode(
+                x=alt.X('Relative_Page:Q', title="Page within Juz", axis=alt.Axis(labels=False, ticks=False, grid=False)),
+                x2='Relative_Page_End:Q',
+                y=alt.Y('Juz:O', title="Juz", sort=alt.EncodingSortField(field="Juz", order="ascending")),
+                color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=3)),
+                opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
+            )
+
+            text = base_chart.mark_text(baseline='middle', align='center', fontSize=8, fontWeight='bold').encode(
+                x=alt.X('Center_Page:Q'),
+                y=alt.Y('Juz:O'),
+                text=alt.Text('Page:Q'),
+                color=alt.condition(
+                    (alt.datum.Status == '⚪ Not Started') | (alt.datum.Status == '🔴 Overdue') | (alt.datum.Status == '⏳ Pending (Cat 2)'),
+                    alt.value('#ffffff'),
+                    alt.value('#022c22')
+                ),
+                opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
+            )
+
+            timeline_chart = (rects + text).add_params(click).properties(height=500)
+            chart_event = st.altair_chart(timeline_chart, use_container_width=True, theme=None, on_select="rerun")
+
+            if chart_event and chart_event.selection and "click" in chart_event.selection:
+                selections = chart_event.selection["click"]
+                if selections:
+                    selected_page = selections[0]["Page"]
+                    page_surahs = df_dashboard[(df_dashboard['Page'] == selected_page) & (df_dashboard['Surah'] != '1. Al-Fatihah')]
+                    if len(page_surahs) == 1:
+                        r = page_surahs.iloc[0]
+                        c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
+                        next_due_str = f" &nbsp; | &nbsp; **Next Due:** {r['Next Revision Due']}" if r['Next Revision Due'] else ""
+                        st.success(f"**📖 Surah {c_name}** (Page {selected_page} | Juz {r['Juz']}) \n**📊 Status:** {r['Status']} \n**📅 Last Revised:** {r['Last Revised']}{next_due_str}")
+
+    with st.expander("🏅 Achievements & Milestones"):
         render_achievements_section(df_logs, df_dashboard, max_streak, total_hours)
 
-        st.markdown("---")
+    with st.expander("📊 Priority & Consistency Analytics"):
         col_pie, col_chart = st.columns(2)
         with col_pie:
             st.subheader("📊 Priority Distribution")
@@ -1196,16 +1087,13 @@ if page == "📊 Dashboard":
                     for _, log in recent_logs.iterrows():
                         f_p = log.get('from_page')
                         t_p = log.get('to_page')
-                        
                         from_surah_str = str(log.get('from_surah') or '').strip()
                         to_surah_str = str(log.get('to_surah') or '').strip() or from_surah_str
-                        
                         f_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == from_surah_str]
                         t_match = [x for x in SURAH_DATA if f"{x[0]}. {x[1]}" == to_surah_str]
 
                         if pd.isna(f_p) or f_p == 0:
                             if f_match: f_p = f_match[0][2]
-                        
                         if pd.isna(t_p) or t_p == 0:
                             if t_match: t_p = t_match[0][3]
                             elif f_match: t_p = f_match[0][3]
@@ -1215,11 +1103,9 @@ if page == "📊 Dashboard":
                             pages = abs(int(t_p) - int(f_p)) + 1
                         else:
                             pages = 0
-                            
                         pages_read_list.append(pages)
                         
                     recent_logs['Pages Read'] = pages_read_list
-                    
                     daily_counts = recent_logs.groupby('log_date')['Pages Read'].sum().reset_index()
                     st.line_chart(daily_counts.set_index('log_date'))
                 else:
@@ -1229,55 +1115,159 @@ if page == "📊 Dashboard":
 elif page == "📝 Log Session":
     st.title("📝 Log Your Revision")
     
-    active_surah_options = [""] + get_active_surah_options(df_priorities)
+    active_surah_list = get_active_surah_options(df_priorities)
+    active_surah_options_with_blank = [""] + active_surah_list
     
-    # Split into two tabs: Single Entry vs Bulk Upload
-    tab_single, tab_bulk = st.tabs(["📝 Log Single Session", "📤 Bulk Import from Excel"])
+    # 4 Clean Top-Level Tabs
+    tab_surah, tab_range, tab_pages, tab_bulk = st.tabs([
+        "📖 Specific Surah(s)", 
+        "📚 Range of Surahs", 
+        "📄 Range of Pages", 
+        "📤 Bulk Import from Excel"
+    ])
     
-    # --- TAB 1: SINGLE LOG FORM ---
-    with tab_single:
+    # --- TAB 1: SPECIFIC SURAH(S) ---
+    with tab_surah:
+        st.write("Quickly select one or more Surahs you read today.")
+        with st.form("log_surah_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                log_date = st.date_input("Date", date.today(), key="s_tab_date")
+            with col2:
+                minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5, key="s_tab_mins")
+                
+            selected_surahs = st.multiselect("Select Surah(s)*", options=active_surah_list, key="s_tab_select")
+            
+            submitted_surah = st.form_submit_button("💾 Save Session to Cloud", type="primary")
+
+            if submitted_surah:
+                if not selected_surahs:
+                    st.error("❌ Validation Error: Please select at least one Surah.")
+                elif minutes > 300:
+                    st.error("❌ Validation Error: Session exceeds 5 hours (300 mins).")
+                else:
+                    selected_records = [s for s in SURAH_DATA if f"{s[0]}. {s[1]}" in selected_surahs]
+                    split_mins = max(1, int(minutes / len(selected_records)))
+                    
+                    rows_to_insert = []
+                    for s_rec in selected_records:
+                        surah_label = f"{s_rec[0]}. {s_rec[1]}"
+                        rows_to_insert.append({
+                            "user_name": user_email,
+                            "log_date": str(log_date),
+                            "from_surah": surah_label,
+                            "to_surah": surah_label,
+                            "from_page": s_rec[2],
+                            "to_page": s_rec[3],
+                            "minutes": split_mins,
+                            "notes": f"Logged via Specific Surah selection"
+                        })
+                    
+                    supabase.table('daily_logs').insert(rows_to_insert).execute()
+                    
+                    st.toast("✅ Log saved successfully! Redirecting...")
+                    st.balloons()
+                    st.session_state["pending_nav"] = "📊 Dashboard"
+                    time.sleep(1.2)
+                    st.rerun()
+
+    # --- TAB 2: RANGE OF SURAHS ---
+    with tab_range:
         with st.form("daily_log_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                log_date = st.date_input("Date", date.today())
-                from_surah = st.selectbox("From Surah*", options=active_surah_options)
-                from_page = st.number_input("From Page (Optional)", min_value=0, max_value=604, value=0, step=1)
+                log_date = st.date_input("Date", date.today(), key="range_date")
+                from_surah = st.selectbox("From Surah*", options=active_surah_options_with_blank, key="range_from_s")
+                from_page = st.number_input("From Page (Optional)", min_value=0, max_value=604, value=0, step=1, key="range_from_p")
             with col2:
-                minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5)
-                to_surah = st.selectbox("To Surah (Optional)", options=[""] + active_surah_options)
-                to_page = st.number_input("To Page (Optional)", min_value=0, max_value=604, value=0, step=1)
+                minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5, key="range_mins")
+                to_surah = st.selectbox("To Surah (Optional)", options=active_surah_options_with_blank, key="range_to_s")
+                to_page = st.number_input("To Page (Optional)", min_value=0, max_value=604, value=0, step=1, key="range_to_p")
             
-            notes = st.text_input("Notes / Specific Verses")
-            submitted = st.form_submit_button("💾 Save Session to Cloud")
+            notes = st.text_input("Notes / Specific Verses", key="range_notes")
+            submitted_range = st.form_submit_button("💾 Save Session to Cloud", type="primary")
             
-            if submitted:
-                if to_page > 0 and from_page > 0 and to_page < from_page:
-                    st.error("❌ Validation Error: 'To Page' cannot be smaller than 'From Page'.")
-                elif minutes > 300:
-                    st.error("❌ Validation Error: Session exceeds 5 hours (300 mins).")
-                elif not from_surah:
+            if submitted_range:
+                if not from_surah:
                     st.error("❌ Validation Error: Please select a 'From Surah'.")
                 else:
+                    f_match = next((s for s in SURAH_DATA if f"{s[0]}. {s[1]}" == from_surah), None)
+                    t_match = next((s for s in SURAH_DATA if f"{s[0]}. {s[1]}" == to_surah), None) if to_surah else f_match
+
+                    final_from_page = int(from_page) if from_page > 0 else (f_match[2] if f_match else None)
+                    final_to_page = int(to_page) if to_page > 0 else (t_match[3] if t_match else final_from_page)
+
+                    if final_to_page and final_from_page and final_to_page < final_from_page:
+                        st.error("❌ Validation Error: 'To Page' cannot be smaller than 'From Page'.")
+                    elif minutes > 300:
+                        st.error("❌ Validation Error: Session exceeds 5 hours (300 mins).")
+                    else:
+                        new_log = {
+                            "user_name": user_email,
+                            "log_date": str(log_date),
+                            "from_surah": from_surah,
+                            "to_surah": to_surah if to_surah else from_surah,
+                            "from_page": final_from_page,
+                            "to_page": final_to_page,
+                            "minutes": minutes,
+                            "notes": notes
+                        }
+                        supabase.table('daily_logs').insert(new_log).execute()
+                        
+                        st.toast("✅ Log saved successfully! Redirecting...")
+                        st.balloons()
+                        st.session_state["pending_nav"] = "📊 Dashboard"
+                        time.sleep(1.2)
+                        st.rerun()
+
+    # --- TAB 3: RANGE OF PAGES ---
+    with tab_pages:
+        st.write("Log your session using exact Quran page numbers.")
+        with st.form("log_pages_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                log_date = st.date_input("Date", date.today(), key="p_tab_date")
+                from_p = st.number_input("From Page*", min_value=1, max_value=604, value=1, step=1, key="p_from")
+            with col2:
+                p_minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5, key="p_mins")
+                to_p = st.number_input("To Page*", min_value=1, max_value=604, value=10, step=1, key="p_to")
+                
+            submitted_pages = st.form_submit_button("💾 Save Session to Cloud", type="primary")
+
+            if submitted_pages:
+                if to_p < from_p:
+                    st.error("❌ Validation Error: 'To Page' cannot be smaller than 'From Page'.")
+                elif p_minutes > 300:
+                    st.error("❌ Validation Error: Session exceeds 5 hours (300 mins).")
+                else:
+                    f_surah_rec = next((s for s in SURAH_DATA if s[2] <= from_p <= s[3]), None)
+                    t_surah_rec = next((s for s in SURAH_DATA if s[2] <= to_p <= s[3]), None)
+                    
+                    f_surah_label = f"{f_surah_rec[0]}. {f_surah_rec[1]}" if f_surah_rec else None
+                    t_surah_label = f"{t_surah_rec[0]}. {t_surah_rec[1]}" if t_surah_rec else f_surah_label
+
                     new_log = {
                         "user_name": user_email,
                         "log_date": str(log_date),
-                        "from_surah": from_surah if from_surah else None,
-                        "to_surah": to_surah if to_surah else None,
-                        "from_page": int(from_page) if from_page and from_page > 0 else None,
-                        "to_page": int(to_page) if to_page and to_page > 0 else None,
-                        "minutes": minutes,
-                        "notes": notes
+                        "from_surah": f_surah_label,
+                        "to_surah": t_surah_label,
+                        "from_page": int(from_p),
+                        "to_page": int(to_p),
+                        "minutes": p_minutes,
+                        "notes": f"Logged via Page Range ({from_p}-{to_p})"
                     }
                     supabase.table('daily_logs').insert(new_log).execute()
                     
-                    st.toast("✅ Log saved successfully!")
+                    st.toast("✅ Log saved successfully! Redirecting...")
                     st.balloons()
+                    st.session_state["pending_nav"] = "📊 Dashboard"
+                    time.sleep(1.2)
+                    st.rerun()
 
-    # --- TAB 2: BULK EXCEL IMPORTER ---
+    # --- TAB 4: BULK EXCEL IMPORTER ---
     with tab_bulk:
         st.subheader("📤 Import Past History from Excel")
         st.write("Upload your existing Quran Tracker Excel or CSV file to instantly transfer your previous logs to your cloud account.")
-        # --- SAMPLE TEMPLATE GENERATOR ---
         import io
         template_df = pd.DataFrame([
             {
@@ -1306,7 +1296,6 @@ elif page == "📝 Log Session":
         
         if uploaded_file:
             try:
-                # Read Excel or CSV
                 if uploaded_file.name.endswith('.csv'):
                     import_df = pd.read_csv(uploaded_file)
                 else:
@@ -1319,10 +1308,8 @@ elif page == "📝 Log Session":
                     rows_to_insert = []
                     
                     for _, row in import_df.iterrows():
-                        # Standardize column headers (flexible column matching)
                         row_dict = {str(k).strip().lower(): v for k, v in row.to_dict().items()}
                         
-                        # Helper function to extract value cleanly
                         def get_col(possible_names, is_int=False):
                             for name in possible_names:
                                 if name in row_dict and pd.notna(row_dict[name]):
@@ -1333,10 +1320,9 @@ elif page == "📝 Log Session":
                                     return str(val).strip()
                             return None
 
-                        # Extract fields
                         raw_date = get_col(['log_date', 'date', 'log date'])
                         if not raw_date:
-                            continue  # Skip rows without a date
+                            continue
                             
                         formatted_date = pd.to_datetime(raw_date).strftime('%Y-%m-%d')
                         f_surah = get_col(['from_surah', 'from surah', 'surah', 'from'])
@@ -1470,6 +1456,120 @@ elif page == "📜 View History":
                 st.success("✅ All history cleared.")
                 st.rerun()
 
-# --- PAGE 5: MANAGE PRIORITIES ---
-elif page == "⚙️ Manage Priorities":
+# --- PAGE 4: MANAGE PRIORITIES ---
+elif page == "🎯 Manage Priorities":
     render_priority_manager(onboarding=False)
+# --- PAGE 5: SETTINGS ---
+elif page == "⚙️ Settings":
+    st.title("⚙️ Account Settings")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🔑 Change Password")
+        with st.form("settings_change_pass", clear_on_submit=True):
+            new_pw = st.text_input("New Password", type="password")
+            confirm_pw = st.text_input("Confirm New Password", type="password")
+            submit_pw = st.form_submit_button("Update Password", type="primary")
+            
+            if submit_pw:
+                if len(new_pw) < 6:
+                    st.error("❌ Password must be at least 6 characters long.")
+                elif new_pw != confirm_pw:
+                    st.error("❌ Passwords do not match.")
+                else:
+                    try:
+                        supabase.auth.update_user({"password": new_pw})
+                        st.toast("✅ Password updated successfully!")
+                        st.success("✅ Password updated!")
+                    except Exception as e:
+                        st.error(f"❌ Failed to update password: {e}")
+
+    with col2:
+        st.subheader("🔔 Daily Email Reminders")
+        current_settings = fetch_user_settings()
+        
+        with st.form("settings_reminders"):
+            rem_enabled = st.checkbox("Enable Daily Email Reminders", value=current_settings.get("email_reminders", False))
+            
+            time_options = [f"{h:02d}:00" for h in range(24)]
+            time_labels = [datetime.strptime(t, "%H:%M").strftime("%I:00 %p") for t in time_options]
+            
+            curr_time_str = current_settings.get("reminder_time", "20:00")
+            curr_index = time_options.index(curr_time_str) if curr_time_str in time_options else 20
+            
+            selected_time_label = st.selectbox("Preferred Time", options=time_labels, index=curr_index)
+            selected_time = time_options[time_labels.index(selected_time_label)]
+            
+            submit_rem = st.form_submit_button("Save Reminder Settings", type="primary")
+            
+            if submit_rem:
+                try:
+                    save_user_settings(rem_enabled, selected_time)
+                    st.toast("✅ Reminder settings saved!")
+                    st.success("✅ Settings saved!")
+                except Exception as e:
+                    st.error(f"❌ Could not save settings: {e}")
+# --- PAGE 6: HOW IT WORKS ---
+elif page == "💡 How It Works":
+    st.title("💡 How Quran Tracker Works")
+    st.write("Understand the system designed to help you read, revise, and retain the Quran consistently.")
+
+    st.markdown("---")
+
+    # --- SECTION 1: THE DAILY ROUTINE ---
+    st.subheader("🔄 The 3-Step Daily Routine")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 1. Set Your Baseline")
+        st.write("Assign priorities to Surahs or specific pages so the engine knows what you've already memorized.")
+        
+    with col2:
+        st.markdown("#### 2. Do Your Daily Wird")
+        st.write("Read, revise, or memorize at your own pace whenever you can commit time today.")
+        
+    with col3:
+        st.markdown("#### 3. Log Your Session")
+        st.write("Record your time, and the smart engine automatically updates your revision schedule!")
+
+    st.markdown("---")
+
+    # --- SECTION 2: THE TO-DO LIST LOGIC ---
+    st.subheader("🎯 How \"Next on To-Do List\" Works")
+    st.write("The ranking engine automatically picks the top page you should focus on next so you never have to guess. Here is the order it follows:")
+
+    st.markdown("""
+    1. **🔴 1. Overdue Check-ins (Highest Priority):** Pages marked as *Confident* that have passed their review due date appear first so you never lose what you've memorized.
+    2. **🟡 2. Due Soon:** Pages approaching their upcoming revision date pop up next to keep your retention proactive.
+    3. **🟡 3. Active Revision (Priority 2):** Pages you've memorized in the past but need active review are queued to help lock them into long-term memory.
+    4. **⚪ 4. New Pages (Priority 3 - Lowest Priority):** Brand-new pages are suggested only when all your previous memorization is completely secure and up to date!
+    """)
+
+    st.markdown("---")
+
+    # --- SECTION 3: PRIORITY LEVELS ---
+    st.subheader("🗂️ The 3 Priority Levels Explained")
+    
+    col_p1, col_p2, col_p3 = st.columns(3)
+    with col_p1:
+        st.markdown("#### 🟢 Priority 1 - Confident")
+        st.write("Portions you know well. The app protects these with scheduled periodic reviews.")
+    with col_p2:
+        st.markdown("#### 🟡 Priority 2 - Needs Revision")
+        st.write("Portions you've memorized before but feel rusty on. The app prioritizes these to strengthen them.")
+    with col_p3:
+        st.markdown("#### ⚪ Priority 3 - Not Memorized")
+        st.write("Portions you haven't memorized yet. The app holds these back until current memorization is safe.")
+
+    st.markdown("---")
+
+    # --- SECTION 4: ADAPTIVE REVISION CYCLES ---
+    st.subheader("⏱️ Dynamic Revision Cycles")
+    st.write("As your memorization grows, the time between review check-ins automatically expands:")
+
+    st.markdown("""
+    * **0 - 301 Pages Confident:** **14-day cycle** *(Focused, frequent check-ins)*
+    * **302 - 452 Pages Confident:** **21-day cycle** *(Medium interval)*
+    * **453+ Pages Confident (75%+ of Quran):** **30-day cycle** *(Full monthly cycle)*
+    """)
