@@ -129,24 +129,36 @@ except Exception:
     st.error("❌ Connection to database failed. Please check your secrets.")
     st.stop()
 
-# --- AUTHENTICATION SYSTEM ---
+# --- AUTHENTICATION SYSTEM & PERSISTENT COOKIE FIX ---
 if "user" not in st.session_state:
     st.session_state["user"] = None
 
-qt_access = cookie_manager.get("qt_access")
-qt_refresh = cookie_manager.get("qt_refresh")
+# Allow a 200ms sync frame on cold boot so mobile browsers can deliver cookies to Python
+if "cookie_synced" not in st.session_state:
+    time.sleep(0.2)
+    st.session_state["cookie_synced"] = True
+    st.rerun()
+
+all_cookies = cookie_manager.get_all()
+qt_access = all_cookies.get("qt_access")
+qt_refresh = all_cookies.get("qt_refresh")
 
 if st.session_state["user"] is None and qt_refresh:
     try:
         res = supabase.auth.set_session(qt_access, qt_refresh)
-        st.session_state["user"] = res.user
-        
-        expire_date = datetime.now() + timedelta(days=30)
-        cookie_manager.set("qt_access", res.session.access_token, expires_at=expire_date, key="set_access_auto")
-        cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date, key="set_refresh_auto")
+        if res and res.user:
+            st.session_state["user"] = res.user
+            
+            # Renew persistent session cookies for 30 days
+            expire_date = datetime.now() + timedelta(days=30)
+            cookie_manager.set("qt_access", res.session.access_token, expires_at=expire_date, key="set_access_auto")
+            cookie_manager.set("qt_refresh", res.session.refresh_token, expires_at=expire_date, key="set_refresh_auto")
+            st.rerun()
     except Exception:
-        pass
-
+        # If saved session token has expired, clean up old cookies
+        cookie_manager.delete("qt_access", key="del_expired_access")
+        cookie_manager.delete("qt_refresh", key="del_expired_refresh")
+        
 # --- LOGIN & SIGN UP SYSTEM ---
 def render_login():
     st.title("🔐 Login to Quran Tracker")
