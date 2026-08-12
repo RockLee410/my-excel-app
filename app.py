@@ -620,6 +620,52 @@ def render_priority_manager(onboarding=False):
         render_onboarding_tabs("2 - Needs Revision", "q2")
         
         st.markdown("---")
+
+        # --- SELECTION REVIEW SUMMARY SECTION ---
+        st.markdown("### 📋 Review Your Baseline Selections")
+        st.write("Check your selected portions below before saving:")
+        
+        state = get_page_priority_state()
+        p1_items = []
+        p2_items = []
+        
+        for s in SURAH_DATA:
+            if s[1] == "Al-Fatihah":
+                continue
+            s_name = s[1]
+            s_pages = list(range(s[2], s[3] + 1))
+            
+            p1_pages = [p for p in s_pages if state.get(f"{s_name}::{p}") == "1 - Confident"]
+            p2_pages = [p for p in s_pages if state.get(f"{s_name}::{p}") == "2 - Needs Revision"]
+            
+            if len(p1_pages) == len(s_pages):
+                p1_items.append(f"• **{s[0]}. {s_name}** *(Full Surah)*")
+            elif p1_pages:
+                p1_items.append(f"• **{s[0]}. {s_name}** *(Pgs {min(p1_pages)}–{max(p1_pages)})*")
+                
+            if len(p2_pages) == len(s_pages):
+                p2_items.append(f"• **{s[0]}. {s_name}** *(Full Surah)*")
+            elif p2_pages:
+                p2_items.append(f"• **{s[0]}. {s_name}** *(Pgs {min(p2_pages)}–{max(p2_pages)})*")
+
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            st.markdown("##### 🟢 Priority 1 (Confident)")
+            with st.container(height=160):
+                if p1_items:
+                    st.markdown("  \n".join(p1_items))
+                else:
+                    st.caption("No portions selected yet.")
+                    
+        with col_r2:
+            st.markdown("##### 🟡 Priority 2 (Needs Revision)")
+            with st.container(height=160):
+                if p2_items:
+                    st.markdown("  \n".join(p2_items))
+                else:
+                    st.caption("No portions selected yet.")
+
+        st.markdown("---")
         if st.button("💾 Complete Setup & Save to Cloud", type="primary", use_container_width=True):
             save_priorities_to_db("✅ Setup complete! Redirecting to Dashboard...")
 
@@ -991,7 +1037,25 @@ if page == "📊 Dashboard":
         surah_name = surah_str.split('. ', 1)[1]
         page_val = int(top_action['Page'])
         
-        st.info(f"🎯 **NEXT ON TO-DO LIST:** Start Reading from Surah {surah_name} (Page {page_val})")
+        # Eye-Catching Hero Target Card
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(16, 185, 129, 0.12));
+            border: 2px solid #d4af37;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin: 10px 0 18px 0;
+            box-shadow: 0 4px 18px rgba(212, 175, 55, 0.25);
+        ">
+            <div style="font-size: 0.8rem; font-weight: 800; color: #d4af37; text-transform: uppercase; letter-spacing: 1.2px;">
+                🎯 Your Target Today
+            </div>
+            <div style="font-size: 1.45rem; font-weight: 800; color: #ffffff; margin-top: 4px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+                <span>Start Reading From <span style="color: #6ee7b7;">Surah {surah_name}</span></span>
+                <span style="background-color: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; padding: 3px 12px; border-radius: 20px; font-size: 1.05rem; color: #fde047; font-weight: 700;">Page {page_val}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         def upgrade_single_page(s_name, p_val, target_priority):
             set_page_priority(s_name, p_val, target_priority)
@@ -1690,6 +1754,7 @@ elif page == "⚙️ Settings":
                     st.success("✅ Settings saved!")
                 except Exception as e:
                     st.error(f"❌ Could not save settings: {e}")
+
 # --- PAGE 6: HOW IT WORKS ---
 elif page == "💡 How It Works":
     st.title("💡 How Quran Tracker Works")
