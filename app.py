@@ -397,7 +397,7 @@ def build_dashboard_rows(df_logs, df_priorities):
                 next_due = ""
             elif last_rev is None:
                 if priority == "1 - Confident":
-                    status = "⏳ Pending (Cat 1)"
+                    status = "🔴 Next in line"
                     score = 300000 + p
                 else: 
                     status = "⏳ Pending (Cat 2)"
@@ -875,14 +875,19 @@ def render_achievements_section(df_logs, df_dashboard, max_streak, total_hours):
 
 # --- PAGE 1: DASHBOARD ---
 if page == "📊 Dashboard":
-    # 1. Mobile-friendly Title and Action Button Header
-    head_col1, head_col2 = st.columns([2.5, 1], vertical_alignment="center")
+    # 1. Mobile-friendly Title and Action Button Header (With Space Between)
+    head_col1, head_col2 = st.columns([2.2, 1], gap="medium", vertical_alignment="center")
     with head_col1:
-        st.markdown("<h2 style='margin:0; padding:0; font-size: 1.45rem; white-space: nowrap;'>📊 Progress Dashboard</h2>", unsafe_allow_html=True)
+        st.markdown(
+            "<h2 style='margin:0; padding-right: 10px; font-size: 1.35rem; white-space: nowrap;'>"
+            "📊 Progress Dashboard"
+            "</h2>", 
+            unsafe_allow_html=True
+        )
     with head_col2:
         def jump_to_log():
             st.session_state.sidebar_nav = "📝 Log Session"
-        st.button("📝 Log", type="primary", on_click=jump_to_log, use_container_width=True)
+        st.button("📝 Log Session", type="primary", on_click=jump_to_log, use_container_width=True)
     
     df_logs = fetch_logs()
     df_dashboard = build_dashboard_rows(df_logs, df_priorities)
@@ -1113,9 +1118,26 @@ if page == "📊 Dashboard":
             chart_df['Relative_Page_End'] = chart_df['Relative_Page'] + 1
             chart_df['Center_Page'] = chart_df['Relative_Page'] + 0.5
 
-            status_domain = ["🟢 Good", "🟡 Due Soon", "🟡 Needs Revision", "🔴 Overdue", "⏳ Pending (Cat 1)", "⏳ Pending (Cat 2)", "⚪ Not Started"]
-            status_colors = ["#10b981", "#ddd012", "#F57F17", "#ef4444", "#3b82f6", "#8b5cf6", "#BDBDBD"]
+            status_domain = [
+                "🟢 Good", 
+                "🟡 Due Soon", 
+                "🟡 Needs Revision", 
+                "🔴 Overdue", 
+                "🔴 Next in line", 
+                "⏳ Pending (Cat 2)", 
+                "⚪ Not Started"
+            ]
+            status_colors = [
+                "#10b981",  # Emerald Green
+                "#ddd012",  # Bright Electric Yellow
+                "#F57F17",  # Deep Blaze Orange
+                "#ef4444",  # Ruby Red (Overdue)
+                "#ef4444",  # Ruby Red (Next in line — SAME AS OVERDUE)
+                "#8b5cf6",  # Deep Purple
+                "#BDBDBD"   # Dark Charcoal
+            ]
 
+            # --- 3. BUILD LAYERED ALTAIR CHART (Rectangles + Page Numbers) ---
             click = alt.selection_point(name='click', fields=['Page'])
             base_chart = alt.Chart(chart_df)
 
@@ -1124,7 +1146,13 @@ if page == "📊 Dashboard":
                 x2='Relative_Page_End:Q',
                 y=alt.Y('Juz:O', title="Juz", sort=alt.EncodingSortField(field="Juz", order="ascending")),
                 color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=3)),
-                opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
+                opacity=alt.condition(click, alt.value(1.0), alt.value(0.3)),
+                tooltip=[
+                    alt.Tooltip('Page:Q', title="Page"),
+                    alt.Tooltip('Juz:O', title="Juz"),
+                    alt.Tooltip('Clean_Surah:N', title="Surah(s)"),
+                    alt.Tooltip('Status:N', title="Status")
+                ]
             )
 
             text = base_chart.mark_text(baseline='middle', align='center', fontSize=8, fontWeight='bold').encode(
@@ -1132,7 +1160,7 @@ if page == "📊 Dashboard":
                 y=alt.Y('Juz:O'),
                 text=alt.Text('Page:Q'),
                 color=alt.condition(
-                    (alt.datum.Status == '⚪ Not Started') | (alt.datum.Status == '🔴 Overdue') | (alt.datum.Status == '⏳ Pending (Cat 2)'),
+                    (alt.datum.Status == '⚪ Not Started') | (alt.datum.Status == '🔴 Overdue') | (alt.datum.Status == '🔴 Next in line') | (alt.datum.Status == '⏳ Pending (Cat 2)'),
                     alt.value('#ffffff'),
                     alt.value('#022c22')
                 ),
@@ -1142,16 +1170,50 @@ if page == "📊 Dashboard":
             timeline_chart = (rects + text).add_params(click).properties(height=500)
             chart_event = st.altair_chart(timeline_chart, use_container_width=True, theme=None, on_select="rerun")
 
+            # --- 4. RENDER TAP DETAILS (WITH SAFE INTEGER CASTING) ---
             if chart_event and chart_event.selection and "click" in chart_event.selection:
                 selections = chart_event.selection["click"]
                 if selections:
-                    selected_page = selections[0]["Page"]
-                    page_surahs = df_dashboard[(df_dashboard['Page'] == selected_page) & (df_dashboard['Surah'] != '1. Al-Fatihah')]
-                    if len(page_surahs) == 1:
-                        r = page_surahs.iloc[0]
-                        c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
-                        next_due_str = f" &nbsp; | &nbsp; **Next Due:** {r['Next Revision Due']}" if r['Next Revision Due'] else ""
-                        st.success(f"**📖 Surah {c_name}** (Page {selected_page} | Juz {r['Juz']}) \n**📊 Status:** {r['Status']} \n**📅 Last Revised:** {r['Last Revised']}{next_due_str}")
+                    raw_page = selections[0].get("Page")
+                    selected_page = None
+                    if raw_page is not None:
+                        try:
+                            # Safely convert string/float returns from Vega-Lite into an integer
+                            selected_page = int(float(raw_page))
+                        except (ValueError, TypeError):
+                            selected_page = None
+
+                    if selected_page is not None:
+                        page_surahs = df_dashboard[(df_dashboard['Page'] == selected_page) & (df_dashboard['Surah'] != '1. Al-Fatihah')]
+                        
+                        if len(page_surahs) == 1:
+                            r = page_surahs.iloc[0]
+                            c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
+                            next_due_str = f" &nbsp; | &nbsp; **Next Due:** {r['Next Revision Due']}" if r['Next Revision Due'] else ""
+                            st.success(
+                                f"**📖 Surah {c_name}** (Page {selected_page} | Juz {r['Juz']})  \n"
+                                f"**📊 Status:** {r['Status']}  \n"
+                                f"**📅 Last Revised:** {r['Last Revised']}{next_due_str}"
+                            )
+                        elif len(page_surahs) > 1:
+                            juz_num = page_surahs.iloc[0]['Juz']
+                            surah_lines = []
+                            for _, r in page_surahs.iterrows():
+                                c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
+                                due_info = f" | Next Due: {r['Next Revision Due']}" if r['Next Revision Due'] else ""
+                                surah_lines.append(f"• **Surah {c_name}**: {r['Status']} (Last Revised: {r['Last Revised']}{due_info})")
+                            
+                            details_text = "  \n".join(surah_lines)
+                            st.success(
+                                f"**📖 Page {selected_page} (Juz {juz_num}) — Contains {len(page_surahs)} Surahs:**  \n"
+                                f"{details_text}"
+                            )
+                    else:
+                        st.info("👆 Tap any colored block on the timeline above to see page details.")
+                else:
+                    st.info("👆 Tap any colored block on the timeline above to see page details.")
+            else:
+                st.info("👆 Tap any colored block on the timeline above to see page details.")
 
     with st.expander("🏅 Achievements & Milestones"):
         render_achievements_section(df_logs, df_dashboard, max_streak, total_hours)
