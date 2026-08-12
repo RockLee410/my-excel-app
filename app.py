@@ -90,18 +90,25 @@ if logo_b64:
         """,
         unsafe_allow_html=True
     )
-# --- ISLAMIC THEME CSS ---
+# --- ISLAMIC THEME & MOBILE CSS ---
 st.markdown("""
 <style>
-    /* Injects a subtle, transparent geometric star pattern into the main background */
     .stApp {
         background-color: #022c22;
         background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4af37' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     }
     
-    /* Makes the metric numbers (Streak, Hours, etc.) pop in Gold */
     [data-testid="stMetricValue"] {
         color: #d4af37 !important;
+    }
+
+    /* Mobile view optimizations */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 2rem !important;
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -867,34 +874,53 @@ def render_achievements_section(df_logs, df_dashboard, max_streak, total_hours):
             st.markdown(card_html, unsafe_allow_html=True)
 
 # --- PAGE 1: DASHBOARD ---
-# --- PAGE 1: DASHBOARD ---
 if page == "📊 Dashboard":
-    head_col1, head_col2 = st.columns([3, 1])
+    # 1. Mobile-friendly Title and Action Button Header
+    head_col1, head_col2 = st.columns([2.5, 1], vertical_alignment="center")
     with head_col1:
-        st.title("📊 Progress Dashboard")
+        st.markdown("<h2 style='margin:0; padding:0; font-size: 1.45rem; white-space: nowrap;'>📊 Progress Dashboard</h2>", unsafe_allow_html=True)
     with head_col2:
-        st.write("") 
         def jump_to_log():
             st.session_state.sidebar_nav = "📝 Log Session"
-        st.button("📝 Log Session", type="primary", on_click=jump_to_log, use_container_width=True)
+        st.button("📝 Log", type="primary", on_click=jump_to_log, use_container_width=True)
     
     df_logs = fetch_logs()
     df_dashboard = build_dashboard_rows(df_logs, df_priorities)
 
-    # 1. Global Progress & Metrics
+    # 2. Compact Progress Header (1-Line Text)
     total_confident = df_dashboard[df_dashboard['Priority'] == '1 - Confident']['Page'].nunique()
     progress_pct = min(total_confident / 604.0, 1.0)
-    st.markdown(f"### 🏆 Memorization Progress: {int(progress_pct * 100)}%")
-    st.progress(progress_pct, text=f"{total_confident} out of 604 pages confidently memorized")
     
+    st.markdown(
+        f"<div style='margin-top: 14px; margin-bottom: 4px; font-size: 1rem; font-weight: bold; color: #ffffff; display: flex; justify-content: space-between; align-items: center;'>"
+        f"<span>🏆 Progress: <span style='color: #d4af37;'>{int(progress_pct * 100)}%</span></span>"
+        f"<span style='font-size: 0.8rem; font-weight: normal; color: #9ca3af;'>{total_confident}/604 pages</span>"
+        f"</div>", 
+        unsafe_allow_html=True
+    )
+    st.progress(progress_pct)
+    
+    # 3. Side-by-Side 3-Card Metrics Bar (Works on Mobile without stacking)
     total_sessions = len(df_logs)
     total_hours = round(df_logs['minutes'].sum() / 60, 1) if not df_logs.empty else 0
     current_streak, max_streak = calculate_user_streaks(df_logs)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🔥 Current Streak", f"{current_streak} Days")
-    col2.metric("⏱️ Total Time Spent", f"{total_hours} Hours")
-    col3.metric("📅 Total Sessions", total_sessions)
+    st.markdown(f"""
+    <div style="display: flex; justify-content: space-between; gap: 6px; margin: 12px 0;">
+        <div style="flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(212,175,55,0.3); border-radius: 8px; padding: 8px 4px; text-align: center;">
+            <div style="font-size: 0.72rem; color: #9ca3af; font-weight: 600;">🔥 Streak</div>
+            <div style="font-size: 1.05rem; font-weight: bold; color: #d4af37; margin-top: 2px;">{current_streak} Days</div>
+        </div>
+        <div style="flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(212,175,55,0.3); border-radius: 8px; padding: 8px 4px; text-align: center;">
+            <div style="font-size: 0.72rem; color: #9ca3af; font-weight: 600;">⏱️ Time</div>
+            <div style="font-size: 1.05rem; font-weight: bold; color: #d4af37; margin-top: 2px;">{total_hours} Hrs</div>
+        </div>
+        <div style="flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(212,175,55,0.3); border-radius: 8px; padding: 8px 4px; text-align: center;">
+            <div style="font-size: 0.72rem; color: #9ca3af; font-weight: 600;">📅 Sessions</div>
+            <div style="font-size: 1.05rem; font-weight: bold; color: #d4af37; margin-top: 2px;">{total_sessions}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("---")
 
