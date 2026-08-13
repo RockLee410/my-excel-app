@@ -215,13 +215,11 @@ def fetch_user_settings():
     res = supabase.table('user_settings').select("*").eq("user_name", user_email).execute()
     if res.data:
         return res.data[0]
-    return {"email_reminders": False, "reminder_time": "20:00", "daily_target_minutes": 15}
+    return {"daily_target_minutes": 15}
 
-def save_user_settings(enabled, rem_time, daily_mins=15):
+def save_user_settings(daily_mins=15):
     payload = {
         "user_name": user_email,
-        "email_reminders": enabled,
-        "reminder_time": rem_time,
         "daily_target_minutes": daily_mins
     }
     supabase.table('user_settings').upsert(payload).execute()
@@ -695,13 +693,7 @@ def render_priority_manager(onboarding=False):
 
         st.markdown("---")
         if st.button("💾 Complete Setup & Save to Cloud", type="primary", use_container_width=True):
-            # Save the daily target minutes to settings
-            current_settings = fetch_user_settings()
-            save_user_settings(
-                current_settings.get("email_reminders", False), 
-                current_settings.get("reminder_time", "20:00"), 
-                daily_mins=int(target_mins)
-            )
+            save_user_settings(daily_mins=int(target_mins))
             save_priorities_to_db("✅ Setup complete! Redirecting to Dashboard...")
 
     else:
@@ -1117,6 +1109,7 @@ if page == "📊 Dashboard":
                 st.toast(f"✅ {s_str} upgraded to {target_priority.split(' - ')[1]}!")
 
         if current_cat == "2 - Needs Revision":
+            st.caption("✨ *Mastered this portion? Upgrade it to set up scheduled periodic reviews:*")
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 st.button(f"🟢 Confident of Surah {surah_name}", on_click=upgrade_full_surah, args=(surah_str, "1 - Confident"), use_container_width=True)
@@ -1417,6 +1410,9 @@ elif page == "📝 Log Session":
     
     active_surah_list = get_active_surah_options(df_priorities)
     active_surah_options_with_blank = [""] + active_surah_list
+    
+    if not active_surah_list:
+        st.info("💡 **No active Surahs in your queue yet!**  \nGo to **🎯 Manage Priorities** to set your baseline, or pick a new Surah from the **📊 Dashboard** to start logging practice sessions.")
     
     tab_surah, tab_range, tab_pages, tab_bulk = st.tabs([
         "📖 Specific Surah(s)", 
@@ -1765,10 +1761,10 @@ elif page == "⚙️ Settings":
                         st.error(f"❌ Failed to update password: {e}")
 
     with col2:
-        st.subheader("🔔 Preferences & Reminders")
+        st.subheader("⏱️ Preferences")
         current_settings = fetch_user_settings()
         
-        with st.form("settings_reminders"):
+        with st.form("settings_preferences"):
             target_mins = st.number_input(
                 "Daily Study Goal (Minutes)", 
                 min_value=1, 
@@ -1778,22 +1774,11 @@ elif page == "⚙️ Settings":
                 help="This duration will pre-fill your 'Log Session' form by default."
             )
             
-            st.markdown("---")
-            rem_enabled = st.checkbox("Enable Daily Email Reminders", value=current_settings.get("email_reminders", False))
+            submit_pref = st.form_submit_button("Save Preferences", type="primary")
             
-            time_options = [f"{h:02d}:00" for h in range(24)]
-            time_labels = [datetime.strptime(t, "%H:%M").strftime("%I:00 %p") for t in time_options]
-            curr_time_str = current_settings.get("reminder_time", "20:00")
-            curr_index = time_options.index(curr_time_str) if curr_time_str in time_options else 20
-            
-            selected_time_label = st.selectbox("Preferred Reminder Time", options=time_labels, index=curr_index)
-            selected_time = time_options[time_labels.index(selected_time_label)]
-            
-            submit_rem = st.form_submit_button("Save Preferences", type="primary")
-            
-            if submit_rem:
+            if submit_pref:
                 try:
-                    save_user_settings(rem_enabled, selected_time, daily_mins=int(target_mins))
+                    save_user_settings(daily_mins=int(target_mins))
                     st.toast("✅ Preferences saved successfully!")
                     st.success("✅ Settings updated!")
                 except Exception as e:
