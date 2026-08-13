@@ -158,7 +158,7 @@ if st.session_state["user"] is None and qt_refresh:
         # If saved session token has expired, clean up old cookies
         cookie_manager.delete("qt_access", key="del_expired_access")
         cookie_manager.delete("qt_refresh", key="del_expired_refresh")
-        
+
 # --- LOGIN & SIGN UP SYSTEM ---
 def render_login():
     st.title("🔐 Login to Quran Tracker")
@@ -215,13 +215,14 @@ def fetch_user_settings():
     res = supabase.table('user_settings').select("*").eq("user_name", user_email).execute()
     if res.data:
         return res.data[0]
-    return {"email_reminders": False, "reminder_time": "20:00"}
+    return {"email_reminders": False, "reminder_time": "20:00", "daily_target_minutes": 15}
 
-def save_user_settings(enabled, rem_time):
+def save_user_settings(enabled, rem_time, daily_mins=15):
     payload = {
         "user_name": user_email,
         "email_reminders": enabled,
-        "reminder_time": rem_time
+        "reminder_time": rem_time,
+        "daily_target_minutes": daily_mins
     }
     supabase.table('user_settings').upsert(payload).execute()
 
@@ -632,6 +633,21 @@ def render_priority_manager(onboarding=False):
         render_onboarding_tabs("2 - Needs Revision", "q2")
         
         st.markdown("---")
+        # --- Question 3 ---
+        st.markdown("---")
+        st.markdown("### ⏱️ Third, how much time can you comfortably commit to the Quran each day?")
+        st.caption("We'll pre-fill your logging form with this duration to save you time. You can always adjust it on the fly!")
+        
+        target_mins = st.number_input(
+            "Daily Goal (Minutes)", 
+            min_value=1, 
+            max_value=300, 
+            value=15, 
+            step=5, 
+            key="onboarding_target_mins"
+        )
+
+        st.markdown("---")
 
         # --- SELECTION REVIEW SUMMARY SECTION ---
         st.markdown("### 📋 Review Your Baseline Selections")
@@ -679,6 +695,13 @@ def render_priority_manager(onboarding=False):
 
         st.markdown("---")
         if st.button("💾 Complete Setup & Save to Cloud", type="primary", use_container_width=True):
+            # Save the daily target minutes to settings
+            current_settings = fetch_user_settings()
+            save_user_settings(
+                current_settings.get("email_reminders", False), 
+                current_settings.get("reminder_time", "20:00"), 
+                daily_mins=int(target_mins)
+            )
             save_priorities_to_db("✅ Setup complete! Redirecting to Dashboard...")
 
     else:
@@ -954,19 +977,12 @@ def render_achievements_section(df_logs, df_dashboard, max_streak, total_hours):
 
 # --- PAGE 1: DASHBOARD ---
 if page == "📊 Dashboard":
-    head_col1, head_col2 = st.columns([2.2, 1], gap="medium", vertical_alignment="center")
-    with head_col1:
-        st.markdown(
-            "<h2 style='margin:0; padding-right: 10px; font-size: 1.35rem; white-space: nowrap;'>"
-            "📊 Progress Dashboard"
-            "</h2>", 
-            unsafe_allow_html=True
-        )
-    with head_col2:
-        def jump_to_log():
-            st.session_state.sidebar_nav = "📝 Log Session"
-        st.button("📝 Log Session", type="primary", on_click=jump_to_log, use_container_width=True)
-    
+    st.markdown(
+    "<h2 style='margin:0; font-size: 1.35rem; white-space: nowrap;'>"
+    "📊 Progress Dashboard"
+    "</h2>", 
+    unsafe_allow_html=True
+    )
     df_logs = fetch_logs()
     df_dashboard = build_dashboard_rows(df_logs, df_priorities)
 
@@ -1068,6 +1084,11 @@ if page == "📊 Dashboard":
             </div>
         </div>
         """, unsafe_allow_html=True)
+        # Log Session Button immediately below Target Card
+        def jump_to_log():
+            st.session_state.sidebar_nav = "📝 Log Session"
+
+        st.button("📝 Log Session", type="primary", on_click=jump_to_log, use_container_width=True)
 
         def upgrade_single_page(s_name, p_val, target_priority):
             set_page_priority(s_name, p_val, target_priority)
@@ -1403,7 +1424,9 @@ elif page == "📝 Log Session":
         "📄 Range of Pages", 
         "📤 Bulk Import from Excel"
     ])
-    
+    user_settings = fetch_user_settings()
+    default_mins = int(user_settings.get("daily_target_minutes", 15))
+
     with tab_surah:
         st.write("Quickly select one or more Surahs you read today.")
         with st.form("log_surah_form", clear_on_submit=True):
@@ -1411,7 +1434,7 @@ elif page == "📝 Log Session":
             with col1:
                 log_date = st.date_input("Date", date.today(), key="s_tab_date")
             with col2:
-                minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5, key="s_tab_mins")
+                minutes = st.number_input("Minutes Spent*", min_value=1, value=default_mins, step=5, key="s_tab_mins")
                 
             selected_surahs = st.multiselect("Select Surah(s)*", options=active_surah_list, key="s_tab_select")
             
@@ -1456,7 +1479,7 @@ elif page == "📝 Log Session":
                 from_surah = st.selectbox("From Surah*", options=active_surah_options_with_blank, key="range_from_s")
                 from_page = st.number_input("From Page (Optional)", min_value=0, max_value=604, value=0, step=1, key="range_from_p")
             with col2:
-                minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5, key="range_mins")
+                minutes = st.number_input("Minutes Spent*", min_value=1, value=default_mins, step=5, key="range_mins")
                 to_surah = st.selectbox("To Surah (Optional)", options=active_surah_options_with_blank, key="range_to_s")
                 to_page = st.number_input("To Page (Optional)", min_value=0, max_value=604, value=0, step=1, key="range_to_p")
             
@@ -1504,7 +1527,7 @@ elif page == "📝 Log Session":
                 log_date = st.date_input("Date", date.today(), key="p_tab_date")
                 from_p = st.number_input("From Page*", min_value=1, max_value=604, value=1, step=1, key="p_from")
             with col2:
-                p_minutes = st.number_input("Minutes Spent*", min_value=1, value=15, step=5, key="p_mins")
+                p_minutes = st.number_input("Minutes Spent*", min_value=1, value=default_mins, step=5, key="p_mins")
                 to_p = st.number_input("To Page*", min_value=1, max_value=604, value=10, step=1, key="p_to")
                 
             submitted_pages = st.form_submit_button("💾 Save Session to Cloud", type="primary")
@@ -1742,28 +1765,37 @@ elif page == "⚙️ Settings":
                         st.error(f"❌ Failed to update password: {e}")
 
     with col2:
-        st.subheader("🔔 Daily Email Reminders")
+        st.subheader("🔔 Preferences & Reminders")
         current_settings = fetch_user_settings()
         
         with st.form("settings_reminders"):
+            target_mins = st.number_input(
+                "Daily Study Goal (Minutes)", 
+                min_value=1, 
+                max_value=300, 
+                value=int(current_settings.get("daily_target_minutes", 15)), 
+                step=5,
+                help="This duration will pre-fill your 'Log Session' form by default."
+            )
+            
+            st.markdown("---")
             rem_enabled = st.checkbox("Enable Daily Email Reminders", value=current_settings.get("email_reminders", False))
             
             time_options = [f"{h:02d}:00" for h in range(24)]
             time_labels = [datetime.strptime(t, "%H:%M").strftime("%I:00 %p") for t in time_options]
-            
             curr_time_str = current_settings.get("reminder_time", "20:00")
             curr_index = time_options.index(curr_time_str) if curr_time_str in time_options else 20
             
-            selected_time_label = st.selectbox("Preferred Time", options=time_labels, index=curr_index)
+            selected_time_label = st.selectbox("Preferred Reminder Time", options=time_labels, index=curr_index)
             selected_time = time_options[time_labels.index(selected_time_label)]
             
-            submit_rem = st.form_submit_button("Save Reminder Settings", type="primary")
+            submit_rem = st.form_submit_button("Save Preferences", type="primary")
             
             if submit_rem:
                 try:
-                    save_user_settings(rem_enabled, selected_time)
-                    st.toast("✅ Reminder settings saved!")
-                    st.success("✅ Settings saved!")
+                    save_user_settings(rem_enabled, selected_time, daily_mins=int(target_mins))
+                    st.toast("✅ Preferences saved successfully!")
+                    st.success("✅ Settings updated!")
                 except Exception as e:
                     st.error(f"❌ Could not save settings: {e}")
 
