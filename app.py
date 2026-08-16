@@ -1230,127 +1230,68 @@ if page == "📊 Dashboard":
 
     st.markdown("---")
 
-    # 4. COLLAPSIBLE ADVANCED SECTIONS
-    with st.expander("📚 Visual Progress Timeline (604-Page Grid)"):
-        df_active = df_dashboard[(df_dashboard['Priority'].isin(["1 - Confident", "2 - Needs Revision"])) & (df_dashboard['Surah'] != '1. Al-Fatihah')].copy()
-        if df_active.empty:
-            st.info("No active priority surahs yet. Use the Manage Priorities page to assign some.")
-        else:
-            df_timeline = df_dashboard[df_dashboard['Surah'] != '1. Al-Fatihah'].copy()
-            df_timeline['Clean_Surah'] = df_timeline['Surah'].apply(lambda x: x.split('. ', 1)[1] if '. ' in x else x)
+    # --- SURAH SPECTRUM MAP (COLLAPSIBLE EXPANDER) ---
+    with st.expander("🗺️ Surah Spectrum Map (Proportional Surah Sizes & Status Spectrums)"):
+        status_color_map = {
+            '🟢 Good': '#10b981',             # Emerald Green
+            '🟡 Due Soon': '#f59e0b',         # Bright Yellow/Amber
+            '🟡 Needs Revision': '#ea580c',     # Dark Orange (Active Practice)
+            '🔴 Overdue': '#ef4444',          # Ruby Red
+            '🔴 Next in line': '#ef4444',     # Ruby Red
+            '⏳ Pending (Cat 2)': '#8b5cf6',  # Purple (To Memorise Next)
+            '⚪ Not Started': 'rgba(255, 255, 255, 0.12)' # Muted Dark Gray
+        }
 
-            aggregated_rows = []
-            for p_num, group in df_timeline.groupby('Page', sort=True):
-                sorted_group = group.sort_values('Score')
-                top_row = sorted_group.iloc[0].copy()
-                all_surahs = group['Clean_Surah'].unique()
-                top_row['Clean_Surah'] = " / ".join(all_surahs)
-                aggregated_rows.append(top_row)
+        spectrum_html = '<div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(212, 175, 55, 0.25); border-radius: 12px; padding: 14px 10px; margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start;">'
 
-            chart_df = pd.DataFrame(aggregated_rows)
+        for s in SURAH_DATA:
+            surah_id, surah_name, start_p, end_p = s
+            total_pages = end_p - start_p + 1
 
-            def get_juz_start(juz_num):
-                juz_starts = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582]
-                return juz_starts[int(juz_num) - 1]
+            # Filter directly by Surah label to avoid shared-page status bleeding
+            surah_full_name = f"{surah_id}. {surah_name}"
+            df_surah_pages = df_dashboard[df_dashboard['Surah'] == surah_full_name].sort_values('Page')
 
-            chart_df['Juz_Start'] = chart_df['Juz'].apply(get_juz_start)
-            chart_df['Relative_Page'] = chart_df['Page'] - chart_df['Juz_Start'] + 1
-            chart_df['Relative_Page_End'] = chart_df['Relative_Page'] + 1
-            chart_df['Center_Page'] = chart_df['Relative_Page'] + 0.5
+            gradient_stops = []
+            step_pct = 100.0 / total_pages
 
-            status_domain = [
-                "🟢 Good", 
-                "🟡 Due Soon", 
-                "🟡 Needs Revision", 
-                "🔴 Overdue", 
-                "🔴 Next in line", 
-                "⏳ Pending (Cat 2)", 
-                "⚪ Not Started"
-            ]
-            status_colors = [
-                "#10b981",  # Emerald Green
-                "#ddd012",  # Bright Electric Yellow
-                "#F57F17",  # Deep Blaze Orange
-                "#ef4444",  # Ruby Red (Overdue)
-                "#ef4444",  # Ruby Red (Next in line)
-                "#8b5cf6",  # Deep Purple
-                "#BDBDBD"   # Dark Charcoal
-            ]
+            for idx, (_, p_row) in enumerate(df_surah_pages.iterrows()):
+                p_status = p_row['Status']
+                col = '#10b981' if surah_name == "Al-Fatihah" else status_color_map.get(p_status, 'rgba(255, 255, 255, 0.12)')
+                
+                p_start = idx * step_pct
+                p_end = (idx + 1) * step_pct
+                gradient_stops.append(f"{col} {p_start:.1f}%, {col} {p_end:.1f}%")
 
-            click = alt.selection_point(name='click', fields=['Page'])
-            base_chart = alt.Chart(chart_df)
+            gradient_css = f"linear-gradient(to right, {', '.join(gradient_stops)})"
 
-            rects = base_chart.mark_rect(stroke='#022c22', strokeWidth=1.5, cornerRadius=2).encode(
-                x=alt.X('Relative_Page:Q', title="Page within Juz", axis=alt.Axis(labels=False, ticks=False, grid=False)),
-                x2='Relative_Page_End:Q',
-                y=alt.Y('Juz:O', title="Juz", sort=alt.EncodingSortField(field="Juz", order="ascending")),
-                color=alt.Color('Status:N', scale=alt.Scale(domain=status_domain, range=status_colors), legend=alt.Legend(title="Status", orient="bottom", columns=3)),
-                opacity=alt.condition(click, alt.value(1.0), alt.value(0.3)),
-                tooltip=[
-                    alt.Tooltip('Page:Q', title="Page"),
-                    alt.Tooltip('Juz:O', title="Juz"),
-                    alt.Tooltip('Clean_Surah:N', title="Surah(s)"),
-                    alt.Tooltip('Status:N', title="Status")
-                ]
-            )
-
-            text = base_chart.mark_text(baseline='middle', align='center', fontSize=8, fontWeight='bold').encode(
-                x=alt.X('Center_Page:Q'),
-                y=alt.Y('Juz:O'),
-                text=alt.Text('Page:Q'),
-                color=alt.condition(
-                    (alt.datum.Status == '⚪ Not Started') | (alt.datum.Status == '🔴 Overdue') | (alt.datum.Status == '🔴 Next in line') | (alt.datum.Status == '⏳ Pending (Cat 2)'),
-                    alt.value('#ffffff'),
-                    alt.value('#022c22')
-                ),
-                opacity=alt.condition(click, alt.value(1.0), alt.value(0.3))
-            )
-
-            timeline_chart = (rects + text).add_params(click).properties(height=500)
-            chart_event = st.altair_chart(timeline_chart, use_container_width=True, theme=None, on_select="rerun")
-
-            if chart_event and chart_event.selection and "click" in chart_event.selection:
-                selections = chart_event.selection["click"]
-                if selections:
-                    raw_page = selections[0].get("Page")
-                    selected_page = None
-                    if raw_page is not None:
-                        try:
-                            selected_page = int(float(raw_page))
-                        except (ValueError, TypeError):
-                            selected_page = None
-
-                    if selected_page is not None:
-                        page_surahs = df_dashboard[(df_dashboard['Page'] == selected_page) & (df_dashboard['Surah'] != '1. Al-Fatihah')]
-                        
-                        if len(page_surahs) == 1:
-                            r = page_surahs.iloc[0]
-                            c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
-                            next_due_str = f" &nbsp; | &nbsp; **Next Due:** {r['Next Revision Due']}" if r['Next Revision Due'] else ""
-                            st.success(
-                                f"**📖 Surah {c_name}** (Page {selected_page} | Juz {r['Juz']})  \n"
-                                f"**📊 Status:** {r['Status']}  \n"
-                                f"**📅 Last Revised:** {r['Last Revised']}{next_due_str}"
-                            )
-                        elif len(page_surahs) > 1:
-                            juz_num = page_surahs.iloc[0]['Juz']
-                            surah_lines = []
-                            for _, r in page_surahs.iterrows():
-                                c_name = r['Surah'].split('. ', 1)[1] if '. ' in r['Surah'] else r['Surah']
-                                due_info = f" | Next Due: {r['Next Revision Due']}" if r['Next Revision Due'] else ""
-                                surah_lines.append(f"• **Surah {c_name}**: {r['Status']} (Last Revised: {r['Last Revised']}{due_info})")
-                            
-                            details_text = "  \n".join(surah_lines)
-                            st.success(
-                                f"**📖 Page {selected_page} (Juz {juz_num}) — Contains {len(page_surahs)} Surahs:**  \n"
-                                f"{details_text}"
-                            )
-                    else:
-                        st.info("👆 Tap any colored block on the timeline above to see page details.")
-                else:
-                    st.info("👆 Tap any colored block on the timeline above to see page details.")
+            if surah_name == "Al-Fatihah":
+                tooltip_text = "1. Surah Al-Fatihah (1 pg) &#10;🟢 Good: 1 pgs"
             else:
-                st.info("👆 Tap any colored block on the timeline above to see page details.")
+                status_summary = df_surah_pages['Status'].value_counts().to_dict()
+                summary_str = " | ".join([f"{k}: {v} pgs" for k, v in status_summary.items()])
+                tooltip_text = f"{surah_id}. Surah {surah_name} ({total_pages} pgs) &#10;{summary_str}"
+
+            display_label = f"{surah_id}. {surah_name}" if total_pages >= 6 else f"{surah_id}"
+            calc_width = total_pages * 9 + 25
+
+            spectrum_html += f'<div title="{tooltip_text}" style="flex: 0 0 {calc_width}px; width: {calc_width}px; max-width: 100%; height: 40px; background: {gradient_css}; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; padding: 0 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; box-sizing: border-box; overflow: hidden;"><span style="font-size: 0.68rem; font-weight: 700; color: #ffffff; text-shadow: 0 1px 3px rgba(0,0,0,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{display_label}</span></div>'
+
+        spectrum_html += '</div>'
+
+        st.markdown(spectrum_html, unsafe_allow_html=True)
+
+        # Legend inside expander
+        st.markdown("""
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.68rem; color: #d1d5db; margin-top: -4px; margin-bottom: 8px; padding: 0 4px; flex-wrap: wrap; gap: 8px;">
+            <span><span style="color:#10b981;">■</span> Confident</span>
+            <span><span style="color:#f59e0b;">■</span> Due Soon</span>
+            <span><span style="color:#ef4444;">■</span> Overdue</span>
+            <span><span style="color:#ea580c;">■</span> Active Practice</span>
+            <span><span style="color:#8b5cf6;">■</span> To Memorise Next</span>
+            <span><span style="color:rgba(255,255,255,0.25);">■</span> Unstarted</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     with st.expander("🏅 Achievements & Milestones"):
         render_achievements_section(df_logs, df_dashboard, max_streak, total_hours)
